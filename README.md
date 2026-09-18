@@ -36,6 +36,11 @@ still works as a plain page; only install and offline are unavailable there.
   asking for a reload; it never reloads on its own, so an unsaved editor draft is never lost.
 - **External links** (glossary and case-study sources) are not intercepted or cached.
 
+## Live site
+
+Deployed on GitHub Pages from the `gh-pages` branch of `playnext-skills/formations-board`:
+**https://playnext-skills.github.io/formations-board/**
+
 ## Deploying and shipping a change
 
 1. Edit `index.html` as usual. Run `FormationsBoard.validate()` in the console after any data
@@ -43,7 +48,10 @@ still works as a plain page; only install and offline are unavailable there.
 2. Bump `VERSION` at the top of `sw.js` (for example `formations-board-v2`). Without the bump,
    installed copies keep serving the cached shell until the browser's own 24-hour service
    worker check runs.
-3. Upload `index.html`, `manifest.webmanifest`, `sw.js` and `icons/` to the same directory on
+3. Commit, then push to both branches (`main` is the working branch, `gh-pages` is what Pages
+   serves): `git push origin main && git push origin main:gh-pages`. The site refreshes within
+   about a minute.
+   To host it anywhere else, upload `index.html`, `manifest.webmanifest`, `sw.js` and `icons/` to the same directory on
    an **https** host. The manifest `scope` and `start_url` are relative, so any directory works,
    but `sw.js` must be served as JavaScript from that directory (a CMS that wraps uploaded
    files in page chrome, as PrestoSports does with HTML, will break registration; check the
