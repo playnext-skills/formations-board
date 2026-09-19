@@ -4720,7 +4720,7 @@ function init(){
   $('#drawerBody').addEventListener('click', function(e){ var b = e.target.closest('[data-goto]'); if (b) goTo(b.dataset.goto); });
   $('#drawerToggle').addEventListener('click', function(){ state.drawerOpen = !state.drawerOpen; renderDrawer(); });
   $('#drawerTabs').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b){ state.drawerTab = b.dataset.dt; renderDrawer(); } });
-  $('#btnEditor').addEventListener('click', function(){ setEditor(!state.editor); });
+  $('#btnEditor').addEventListener('click', function(){ if (!state.editor) state.deckOpen = null; setEditor(!state.editor); });   // Editor and the panel buttons act as one row: only one is pressed
   $('#btnTheme').addEventListener('click', function(){
     var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     applyTheme(next); store.set(KEY_THEME, next);
@@ -4769,9 +4769,13 @@ function init(){
   });
   $('#btnRail').addEventListener('click', function(){ setRail(!$('#app').classList.contains('rail-open')); });
   $('#backdrop').addEventListener('click', function(){ setRail(false); });
-  var toggleDraw = function(){ state.draw = !state.draw; if (state.draw){ state.wpEdit = false; state.deckOpen = 'draw'; } hideTip(); render(false); };
+  var toggleDraw = function(){ state.draw = !state.draw; if (state.draw){ state.wpEdit = false; state.deckOpen = 'draw'; if (state.editor) setEditor(false, true); } hideTip(); render(false); };
   $('#posSeg').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b && b.dataset.pos !== state.fieldPos) setView({ fieldPos: b.dataset.pos }); });
-  $('#deckTabs').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b && b.dataset.dk && !b.disabled){ state.deckOpen = state.deckOpen === b.dataset.dk ? null : b.dataset.dk; renderDeck(); } });
+  $('#deckTabs').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b || !b.dataset.dk || b.disabled) return;
+    if (state.editor){ setEditor(false, true); state.deckOpen = b.dataset.dk; render(false); return; }   // leaving the editor releases its button
+    state.deckOpen = state.deckOpen === b.dataset.dk ? null : b.dataset.dk; renderDeck();
+  });
   $('#btnDraw').addEventListener('click', toggleDraw);
   renderArrowControls();
   $('#arrowSeg').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b){ state.arrowType = b.dataset.arrow; if (!state.draw) state.draw = true; renderArrowControls(); renderFields(false); } });
