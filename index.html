@@ -293,6 +293,11 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
 #btnAccount[hidden]{display:none}
+.dk-row .vsep{width:1px;align-self:stretch;margin:2px 4px;background:var(--line)}
+#colorSeg button[data-color]{display:none}
+#colorSeg.open button[data-color]{display:inline-flex}
+#colorSeg [data-coltoggle]{display:inline-flex;align-items:center;gap:5px}
+#colorSeg .caret{font-size:11px;line-height:1;color:var(--muted)}
 .ed-hist{margin-left:6px}
 .ed-hist button[disabled]{opacity:.45;cursor:default}
 #app.gated{filter:blur(6px);pointer-events:none;user-select:none}
@@ -748,6 +753,11 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
         <button class="btn sm" id="btnUndo" title="Undo the last stroke, ball placement or Clear (Ctrl+Z while Draw is on)">Undo</button>
         <button class="btn sm" id="btnRedo" title="Redo (Ctrl+Y while Draw is on)">Redo</button>
         <button class="btn sm" id="btnWipe" title="Remove every stroke">Clear</button>
+        <i class="vsep" aria-hidden="true"></i>
+        <button class="btn sm primary" id="btnRunDraw" data-rundraw="1" title="Animate players along the strokes you started on them (shortcut: Shift+R)">Run drawing</button>
+        <button class="btn sm" id="btnDrawPause" data-pauseplay="1" title="Pause or resume the animation (shortcut: Space)" disabled>Pause</button>
+        <button class="btn sm" id="btnDrawReset" title="Return the players to their alignment">Reset</button>
+        <button class="btn sm" id="btnSaveDraw" data-savedraw="1" title="Save the strokes started on players as a play in the Custom section of the playbook">Save as play</button>
       </div></section>
       <section class="dk" data-dk="playbook"><h4>Playbook</h4>
         <div class="dk-row"><button class="btn sm primary" id="btnPlays" title="Browse the built-in plays and coverages (shortcut: P)">Browse all plays</button><span class="cp-sum" id="cpSummary"></span></div>
@@ -875,7 +885,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
       <li>Click a formation: the eleven players slide to their new alignment. Hover or tap any player for role and responsibility.</li>
       <li><b>Playbook</b> (below the field: Browse all plays, or press <kbd>P</kbd>) draws common plays and coverages as arrows on the field. <b>Run play</b> (or <kbd>R</kbd>) moves the players and the ball along their arrows, <b>Pause</b> (or <kbd>Space</kbd>) freezes them, the speed buttons run it at half, normal or double speed, <b>Reset</b> returns them, and the PLAY chip clears the arrows.</li>
       <li><b>Field position</b> (above the field) spots the ball on your own 20 or 35, the 50, the opponent's 10 or the 3. The whole field is drawn, so scroll it or use Zoom to formation. <b>Undo view</b> and <b>Redo view</b> (or <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> when no editing mode is on) step back through position and zoom changes.</li>
-      <li><b>Draw</b> (above the field, or press <kbd>D</kbd>) turns the field into a whiteboard: pick a notation (run, pass, block, motion, pitch, zone drop) and a colour, then drag to sketch, then Undo, Redo (also <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> while Draw is on) or Clear, which Undo can bring back. Start a stroke on a player and <b>Run drawing</b> (or <kbd>Shift+R</kbd>) animates him along it, with the ball going from the quarterback to the last player you drew for (or pick the receiver from the <b>Ball to</b> list in the Ball on group, or drag the ball onto any player; either way also sets the receiver of a custom play, and both are undoable with <kbd>Ctrl+Z</kbd>), and <b>Save as play</b> keeps it in the Custom section of the Playbook (stored in this browser and included in Export JSON), where <b>Edit</b> lets you rename it, change the notes and ball handling, or replace its paths with a new drawing (the <b>Playbook</b> group below the field lists the same plays by formation with Edit and Delete, and its <b>Browse all plays</b> button opens the full playbook), and <b>Edit waypoints on field</b> puts draggable handles on the arrows (drag to move a point, Shift+click to remove it, double-click to add one, Alt+click to switch an arrow between run, block and motion, Ctrl+click to delete a whole arrow, click a player who has no arrow to give him one, and Undo or <kbd>Ctrl+Z</kbd> to step back, Redo or <kbd>Ctrl+Y</kbd> to step forward again). Built-in plays have <b>Edit a copy</b>, which puts an editable copy in the Custom section. Strokes stay while you change formations and are included in exports.</li>
+      <li><b>Draw</b> (above the field, or press <kbd>D</kbd>) turns the field into a whiteboard: pick a notation (run, pass, block, motion, pitch, zone drop) and a colour (the swatch button opens the palette), then drag to sketch, then Undo, Redo (also <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> while Draw is on) or Clear, which Undo can bring back. Start a stroke on a player and <b>Run drawing</b> in the Draw group (or <kbd>Shift+R</kbd>) animates him along it, with <b>Pause</b> and <b>Reset</b> beside it, with the ball going from the quarterback to the last player you drew for (or pick the receiver from the <b>Ball to</b> list in the Ball on group, or drag the ball onto any player; either way also sets the receiver of a custom play, and both are undoable with <kbd>Ctrl+Z</kbd>), and <b>Save as play</b> keeps it in the Custom section of the Playbook (stored in this browser and included in Export JSON), where <b>Edit</b> lets you rename it, change the notes and ball handling, or replace its paths with a new drawing (the <b>Playbook</b> group below the field lists the same plays by formation with Edit and Delete, and its <b>Browse all plays</b> button opens the full playbook), and <b>Edit waypoints on field</b> puts draggable handles on the arrows (drag to move a point, Shift+click to remove it, double-click to add one, Alt+click to switch an arrow between run, block and motion, Ctrl+click to delete a whole arrow, click a player who has no arrow to give him one, and Undo or <kbd>Ctrl+Z</kbd> to step back, Redo or <kbd>Ctrl+Y</kbd> to step forward again). Built-in plays have <b>Edit a copy</b>, which puts an editable copy in the Custom section. Strokes stay while you change formations and are included in exports.</li>
       <li><b>Case studies</b> (below the field, or press <kbd>C</kbd>) profile real offenses that ran these formations. A formation's History tab lists the studies that feature it.</li>
       <li><b>Glossary</b> (below the field, or press <kbd>G</kbd>) explains football terms by topic or A to Z, with search and links to related formations.</li>
       <li>The right panel has collapsible Overview, Personnel, Strengths &amp; Weaknesses, Situations, Counters and History sections, and a Legend dropdown under its header. The principal buttons below the field (Play, Editor, Ball on, Draw, Export) each show their controls with a tap and hide them with another; Playbook, Case studies, Glossary and How to use sit at the end of the same row. The bottom drawer holds the personnel-grouping and situational cheat sheets.</li>
@@ -3811,7 +3821,7 @@ function renderSlots(){
     f = current();
     html = '<span class="title-now">' + esc(f.name) + '</span><span class="badge ' + f.side + '">' + sideLabel(f) + '</span><span class="badge mono">' + esc(f.personnelCode) + '</span>' + (state.editor ? '<span class="badge warn">editing a copy</span><span class="seg ed-hist" role="group" aria-label="Editor history"><button data-edundo="1"' + (edHistory.length ? '' : ' disabled') + ' title="Undo the last change to this draft (Ctrl+Z outside a text field)">Undo</button><button data-edredo="1"' + (edRedo.length ? '' : ' disabled') + ' title="Redo (Ctrl+Y)">Redo</button></span>' : '');
     play =
-      (activePlay(f) ? '<button class="slot-chip" aria-pressed="true" data-clearplay="1" title="Remove the play arrows"><b>PLAY</b><span class="nm">' + esc(activePlay(f).n) + '</span><span>&times;</span></button>' + (state.wpEdit ? '<button class="slot-chip" aria-pressed="true" data-wpdone="1" title="Drag a point to move it, Shift+click removes it, double-click adds one after it, Alt+click changes run / block / motion, Ctrl+click removes the whole arrow, click a player without an arrow to give him one"><b>WAYPOINTS</b><span class="nm">drag, Shift+click, double-click, Alt+click, Ctrl+click, click a free player</span><span>Done</span></button><button class="btn sm" data-wpundo="1" title="Undo the last waypoint change (Ctrl+Z)">Undo</button><button class="btn sm" data-wpredo="1" title="Redo the change you undid (Ctrl+Y or Ctrl+Shift+Z)">Redo</button>' : '') : '<button class="slot-chip" data-openplays="1" title="Open the playbook and put a play on the field"><b>PLAY</b><span class="nm">Choose a play</span></button>') + '<button class="btn sm primary" data-rundraw="1" title="Animate players along the strokes you started on them (shortcut: Shift+R)">Run drawing</button><button class="btn sm" data-savedraw="1" title="Save the strokes started on players as a play in the Custom section of the playbook">Save as play</button>' +
+      (activePlay(f) ? '<button class="slot-chip" aria-pressed="true" data-clearplay="1" title="Remove the play arrows"><b>PLAY</b><span class="nm">' + esc(activePlay(f).n) + '</span><span>&times;</span></button>' + (state.wpEdit ? '<button class="slot-chip" aria-pressed="true" data-wpdone="1" title="Drag a point to move it, Shift+click removes it, double-click adds one after it, Alt+click changes run / block / motion, Ctrl+click removes the whole arrow, click a player without an arrow to give him one"><b>WAYPOINTS</b><span class="nm">drag, Shift+click, double-click, Alt+click, Ctrl+click, click a free player</span><span>Done</span></button><button class="btn sm" data-wpundo="1" title="Undo the last waypoint change (Ctrl+Z)">Undo</button><button class="btn sm" data-wpredo="1" title="Redo the change you undid (Ctrl+Y or Ctrl+Shift+Z)">Redo</button>' : '') : '<button class="slot-chip" data-openplays="1" title="Open the playbook and put a play on the field"><b>PLAY</b><span class="nm">Choose a play</span></button>') + '' +
       (state.editor ? '' : '<button class="btn sm primary" data-runplay="1" title="Animate the players along the arrows (shortcut: R)"' + (activePlay(f) ? '' : ' disabled') + '>Run play</button><button class="btn sm" data-pauseplay="1" title="Pause or resume the animation (shortcut: Space)" disabled>Pause</button><button class="btn sm" data-resetplay="1" title="Return the players to their alignment">Reset</button><div class="seg" data-speedseg="1" role="group" aria-label="Animation speed">' + [0.5, 1, 2].map(function(v){ return '<button data-speed="' + v + '" aria-pressed="' + (v === (state.playSpeed || 1)) + '">' + v + '&times;</button>'; }).join('') + '</div>');
   } else if (state.mode === 'overlay'){
     html = chip('OFF', INDEX[state.ovO], state.ovFocus === 'O', 'data-ov="O"') + '<span class="muted">vs</span>' + chip('DEF', INDEX[state.ovD], state.ovFocus === 'D', 'data-ov="D"');
@@ -4278,7 +4288,10 @@ function inkRedoStep(){ if (!inkRedoLog.length){ toast('Nothing to redo'); retur
 function inkClear(){ if (!ink.length) return; inkOp({ k:'clear', strokes:ink, carrier:inkCarrier }); ink = []; inkCarrier = null; renderFields(false); }
 function renderArrowControls(){
   $('#arrowSeg').innerHTML = Object.keys(ARROWS).map(function(k){ return '<button data-arrow="' + k + '" aria-pressed="' + (k === (state.arrowType || 'run')) + '">' + esc(ARROWS[k].n) + '</button>'; }).join('');
-  $('#colorSeg').innerHTML = INK_COLORS.map(function(c){ return '<button data-color="' + c + '" aria-pressed="' + (c === (state.inkColor || INK_COLORS[0])) + '" title="' + c + '"><i style="background:' + c + '"></i></button>'; }).join('');
+  var curCol = state.inkColor || INK_COLORS[0];
+  $('#colorSeg').classList.toggle('open', !!state.colorsOpen);
+  $('#colorSeg').innerHTML = '<button data-coltoggle="1" aria-expanded="' + !!state.colorsOpen + '" title="Stroke colour: click to choose another"><i style="background:' + curCol + '"></i><span class="caret">' + (state.colorsOpen ? '&#9652;' : '&#9662;') + '</span></button>' +
+    INK_COLORS.map(function(c){ return '<button data-color="' + c + '" aria-pressed="' + (c === curCol) + '" title="' + c + '"><i style="background:' + c + '"></i></button>'; }).join('');
 }
 function setInkButtons(){
   $('#btnDraw').setAttribute('aria-pressed', String(!!state.draw));
@@ -4444,7 +4457,7 @@ function editWaypoints(id){
   state.mode = 'single'; state.play = id; state.wpEdit = true; state.draw = false; wpHistory = []; wpRedo = []; goTo(p.f);
 }
 var playAnim = 0, playRun = null;   // playRun: { t: play seconds elapsed, last: timestamp, paused }
-function setPlayControls(){ var b = $('[data-pauseplay]'); if (b){ b.disabled = !playRun; b.textContent = playRun && playRun.paused ? 'Resume' : 'Pause'; } }
+function setPlayControls(){ $$('[data-pauseplay]').forEach(function(b){ b.disabled = !playRun; b.textContent = playRun && playRun.paused ? 'Resume' : 'Pause'; }); }
 function pausePlay(){ if (playRun){ playRun.paused = !playRun.paused; setPlayControls(); } }
 /* Animate movers ({ m:cached player, pts:[[x,y]...] from his spot }) at a constant speed (about 8 yd/s).
    chain = cached players the ball follows in order; h = fraction of the play at which it changes hands. */
@@ -4782,8 +4795,12 @@ function init(){
   });
   $('#btnDraw').addEventListener('click', toggleDraw);
   renderArrowControls();
+  $('#btnRunDraw').addEventListener('click', runDrawing);
+  $('#btnSaveDraw').addEventListener('click', saveDrawingAsPlay);
+  $('#btnDrawPause').addEventListener('click', pausePlay);
+  $('#btnDrawReset').addEventListener('click', function(){ renderFields(true); });
   $('#arrowSeg').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b){ state.arrowType = b.dataset.arrow; if (!state.draw) state.draw = true; renderArrowControls(); renderFields(false); } });
-  $('#colorSeg').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b){ state.inkColor = b.dataset.color; if (!state.draw) state.draw = true; renderArrowControls(); renderFields(false); } });
+  $('#colorSeg').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b && b.dataset.coltoggle){ state.colorsOpen = !state.colorsOpen; renderArrowControls(); return; } if (b){ state.colorsOpen = false; state.inkColor = b.dataset.color; if (!state.draw) state.draw = true; renderArrowControls(); renderFields(false); } });
   $('#btnUndo').addEventListener('click', inkUndo);
   $('#btnRedo').addEventListener('click', inkRedoStep);
   $('#btnWipe').addEventListener('click', inkClear);
