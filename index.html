@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 ================================================================================
- FORMATIONS BOARD — American football formation reference (single file, offline)
+ THE PLAYBOOK CALLER — American football formation reference (single file, offline)
 ================================================================================
 
  PWA FILES  (installable + offline; index.html still works alone as a plain page)
@@ -101,14 +101,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Formations Board</title>
+<title>The Playbook Caller</title>
 <meta name="description" content="American football formation reference: offense, defense and special-teams sets with matchups, case studies, glossary and a whiteboard editor. Works offline.">
 <meta name="theme-color" content="#06175c">
-<meta name="application-name" content="Formations Board">
+<meta name="application-name" content="The Playbook Caller">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Formations">
+<meta name="apple-mobile-web-app-title" content="Playbook Caller">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -622,10 +622,10 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
     <button class="btn only-mobile" id="btnRail" aria-controls="rail" aria-expanded="false">Formations</button>
     <div class="brand">
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="#2d6a3e"/><path d="M1 11h20" stroke="#fff" stroke-width="1.2" opacity=".8"/><circle cx="7" cy="15" r="2.4" fill="#f2c14e"/><circle cx="15" cy="15" r="2.4" fill="#f2c14e"/><path d="M8.2 4.2h5.6L11 8.8z" fill="#e05a47"/></svg>
-      <span>Formations <em>Board</em></span>
+      <span>The Playbook <em>Caller</em></span>
     </div>
     <div class="spacer"></div>
-    <button class="btn" id="btnInstall" hidden title="Install Formations Board on this device">Install app</button>
+    <button class="btn" id="btnInstall" hidden title="Install The Playbook Caller on this device">Install app</button>
     <button class="btn" id="btnTheme" title="Toggle light / dark theme">Light theme</button>
   </header>
 
@@ -802,7 +802,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
 </dialog>
 
 <dialog id="help" aria-labelledby="helpTitle">
-  <div class="dlg-head"><h3 id="helpTitle">How to use Formations Board</h3><button class="btn sm" id="helpClose">Close</button></div>
+  <div class="dlg-head"><h3 id="helpTitle">How to use The Playbook Caller</h3><button class="btn sm" id="helpClose">Close</button></div>
   <div class="dlg-body">
     <h4>Browse</h4>
     <ul>
@@ -4772,19 +4772,19 @@ function init(){
     p.prompt();
     p.userChoice.then(function(r){ if (r && r.outcome !== 'accepted'){ deferredPrompt = p; installBtn.hidden = false; } });
   });
-  window.addEventListener('appinstalled', function(){ deferredPrompt = null; installBtn.hidden = true; toast('Formations Board installed.'); });
+  window.addEventListener('appinstalled', function(){ deferredPrompt = null; installBtn.hidden = true; toast('The Playbook Caller installed.'); });
 
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
   window.addEventListener('load', function(){
     var hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', function(){
-      if (hadController) toast('Formations Board updated. Reload to get the latest version.');
+      if (hadController) toast('The Playbook Caller updated. Reload to get the latest version.');
       hadController = true;
     });
     navigator.serviceWorker.register('sw.js').then(function(){
-      console.log('Formations Board: service worker registered');
-    }).catch(function(err){ console.warn('Formations Board: service worker not registered', err); });
+      console.log('The Playbook Caller: service worker registered');
+    }).catch(function(err){ console.warn('The Playbook Caller: service worker not registered', err); });
   });
 })();
 

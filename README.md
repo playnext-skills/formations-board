@@ -1,4 +1,4 @@
-# Formations Board
+# The Playbook Caller
 
 American football formation reference for the Atlantis University Athletics Sports
 Information Department. One self-contained HTML file plus the small set of files that make
@@ -56,7 +56,7 @@ Deployed on GitHub Pages from the `gh-pages` branch of `playnext-skills/formatio
    but `sw.js` must be served as JavaScript from that directory (a CMS that wraps uploaded
    files in page chrome, as PrestoSports does with HTML, will break registration; check the
    console on first load).
-4. Open the deployed page: the console logs `Formations Board: service worker registered`,
+4. Open the deployed page: the console logs `The Playbook Caller: service worker registered`,
    and DevTools → Application → Manifest shows no errors.
 
 ## Verifying

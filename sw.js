@@ -1,7 +1,7 @@
-/* Formations Board service worker.
+/* The Playbook Caller service worker.
    Bump VERSION whenever index.html, the manifest or an icon changes: the old cache is
    dropped on activate and the page shows a "reload to update" toast. */
-var VERSION = 'formations-board-v1';
+var VERSION = 'formations-board-v2';
 var SHELL = [
   './',
   './index.html',
@@ -38,9 +38,10 @@ self.addEventListener('fetch', function(e){
   if (url.origin !== self.location.origin) return;   // external links (glossary sources) pass through
 
   if (req.mode === 'navigate'){
-    // Network first so a deploy shows up on the next open; cached shell when offline or slow.
+    // Network first (revalidated, never the HTTP cache) so a deploy shows up on the next open;
+    // cached shell when offline or slow.
     e.respondWith(
-      withTimeout(fetch(req), NAV_TIMEOUT_MS).then(function(res){
+      withTimeout(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }), NAV_TIMEOUT_MS).then(function(res){
         var copy = res.clone();
         caches.open(VERSION).then(function(c){ c.put('./index.html', copy); });
         return res;
