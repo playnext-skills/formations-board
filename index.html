@@ -4838,6 +4838,8 @@ function init(){
   if (!URL_ || !KEY){ btnAccount.hidden = true; console.info('The Playbook Caller: accounts are off. Fill ACCOUNTS.url and ACCOUNTS.anonKey in the CONFIG block to turn on sign-in and sync.'); return; }
 
   var KEY_SESSION = 'formationsBoard.session.v1', KEY_SYNC = 'formationsBoard.sync.v1';
+  var APP_URL = location.origin + location.pathname.replace(/[^\/]*$/, '');   // where confirmation / reset links must land
+  var RT = '?redirect_to=' + encodeURIComponent(APP_URL);
   var app = $('#app'), dlg = $('#auth'), acct = $('#account'), form = $('#authForm'), msgEl = $('#authMsg'), submit = $('#authSubmit');
   var session = null, gated = false, syncing = false, busy = false, pushTimer = 0, lastPull = 0, recoveryPending = false, view = 'signin';
   var syncMeta = store.get(KEY_SYNC, null) || { owner: null, dirty: 0, lastSync: 0 };
@@ -4986,14 +4988,14 @@ function init(){
     if (view === 'signin'){
       p = api('/auth/v1/token?grant_type=password', { method: 'POST', auth: false, body: { email: email, password: pw } }).then(function(s){ setSession(s); return enter(); });
     } else if (view === 'signup'){
-      p = api('/auth/v1/signup', { method: 'POST', auth: false, body: { email: email, password: pw, data: { name: name } } }).then(function(r){
+      p = api('/auth/v1/signup' + RT, { method: 'POST', auth: false, body: { email: email, password: pw, data: { name: name } } }).then(function(r){
         var u = r && (r.user || r);
         if (u && Array.isArray(u.identities) && !u.identities.length){ showView('signin', true); setMsg('That email already has an account. Sign in instead.', 'err'); return; }
         if (r && r.access_token){ setSession(r); return enter(); }
         showView('check'); setMsg('We sent a confirmation link to ' + email + '. Open it, then come back and sign in.', 'ok');
       });
     } else if (view === 'forgot'){
-      p = api('/auth/v1/recover', { method: 'POST', auth: false, body: { email: email } }).then(function(){ showView('check'); setMsg('If ' + email + ' has an account, a reset link is on its way. Open it on this device to choose a new password.', 'ok'); });
+      p = api('/auth/v1/recover' + RT, { method: 'POST', auth: false, body: { email: email } }).then(function(){ showView('check'); setMsg('If ' + email + ' has an account, a reset link is on its way. Open it on this device to choose a new password.', 'ok'); });
     } else if (view === 'reset'){
       p = authed('/auth/v1/user', { method: 'PUT', body: { password: pw } }).then(function(){ recoveryPending = false; clearHash(); toast('Password updated'); return enter(); });
     } else { p = Promise.resolve(); }
