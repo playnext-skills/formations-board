@@ -4235,7 +4235,7 @@ var ARROWS = {
   pitch:  { n:'Pitch / option', d:'10 4 2 4', h:'arrow', p:'m' },
   drop:   { n:'Zone drop',      d:'',         h:'dot',   p:'r' }
 };
-var INK_COLORS = ['#ffd447', '#ffffff', '#7fd0ff', '#ff5a5a', '#15171a'];
+var INK_COLORS = ['#ffffff', '#ff1230'];   // white and the brand red
 function strokeAttrs(s){ var a = ARROWS[s.t] || ARROWS.run; return ' stroke="' + (s.col || INK_COLORS[0]) + '"' + (a.d ? ' stroke-dasharray="' + a.d + '"' : ''); }
 function arrowHead(b, e, flat){                   // path data for an arrow tip, a flat blocking end (flat === true or 'flat') or a diamond (flat === 'dot') at e, coming from b
   if (flat === 'dot'){ var q = round1; return 'M' + q(e[0] - 5) + ' ' + q(e[1]) + 'L' + q(e[0]) + ' ' + q(e[1] - 5) + 'L' + q(e[0] + 5) + ' ' + q(e[1]) + 'L' + q(e[0]) + ' ' + q(e[1] + 5) + 'Z'; }
@@ -4288,7 +4288,7 @@ function inkRedoStep(){ if (!inkRedoLog.length){ toast('Nothing to redo'); retur
 function inkClear(){ if (!ink.length) return; inkOp({ k:'clear', strokes:ink, carrier:inkCarrier }); ink = []; inkCarrier = null; renderFields(false); }
 function renderArrowControls(){
   $('#arrowSeg').innerHTML = Object.keys(ARROWS).map(function(k){ return '<button data-arrow="' + k + '" aria-pressed="' + (k === (state.arrowType || 'run')) + '">' + esc(ARROWS[k].n) + '</button>'; }).join('');
-  var curCol = state.inkColor || INK_COLORS[0];
+  var curCol = INK_COLORS.indexOf(state.inkColor) >= 0 ? state.inkColor : INK_COLORS[0];
   $('#colorSeg').classList.toggle('open', !!state.colorsOpen);
   $('#colorSeg').innerHTML = '<button data-coltoggle="1" aria-expanded="' + !!state.colorsOpen + '" title="Stroke colour: click to choose another"><i style="background:' + curCol + '"></i><span class="caret">' + (state.colorsOpen ? '&#9652;' : '&#9662;') + '</span></button>' +
     INK_COLORS.map(function(c){ return '<button data-color="' + c + '" aria-pressed="' + (c === curCol) + '" title="' + c + '"><i style="background:' + c + '"></i></button>'; }).join('');
