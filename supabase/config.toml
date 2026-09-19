@@ -1,0 +1,10 @@
+# Supabase CLI config for the billing functions. The webhook is called by Stripe, not by a
+# signed-in user, so it must not require a JWT; the other two do.
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = true
+
+[functions.create-portal]
+verify_jwt = true
