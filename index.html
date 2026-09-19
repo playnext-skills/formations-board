@@ -13,6 +13,17 @@
  README.md              run, deploy and verify notes
  Registration + the Install button live at the end of the main script ("PWA" banner).
 
+ ACCOUNTS  (optional sign-in gate + cloud sync, powered by Supabase)
+ --------------------------------------------------------------------------
+ Fill ACCOUNTS.url and ACCOUNTS.anonKey in the CONFIG block at the top of the main script.
+ Empty = accounts off, the board is open to everyone and stores data in this browser only.
+ Filled = the board is gated behind email + password sign-in, and each user's custom
+ formations and plays are synced to their own row of the user_data table (see
+ supabase/schema.sql and README.md "Accounts and sync"). The client is hand-written
+ (~250 lines under the "ACCOUNTS" banner near the end of the script): GoTrue for auth,
+ PostgREST for the data row, no SDK. Local storage stays the working copy, so the board
+ keeps working offline; changes are pushed when the network is back.
+
  DATA SCHEMA  (all data lives in the first <script> section, "DATA" banner)
  --------------------------------------------------------------------------
  Formation object:
@@ -281,6 +292,30 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast{position:fixed;left:50%;bottom:64px;transform:translate(-50%,12px);z-index:60;background:var(--bg-4);border:1px solid var(--line);border-radius:8px;padding:8px 14px;box-shadow:var(--shadow);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:90vw}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
+#btnAccount[hidden]{display:none}
+#app.gated{filter:blur(6px);pointer-events:none;user-select:none}
+#auth{width:min(440px,92vw)}
+#auth .dlg-body,#account .dlg-body{padding-top:16px}
+.auth-sub{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.45}
+.auth-sub[hidden]{display:none}
+.auth-tabs{display:flex;gap:6px;margin-bottom:16px}
+.auth-tabs[hidden]{display:none}
+.auth-tabs button{flex:1}
+.auth-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.auth-field[hidden]{display:none}
+.auth-field label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.auth-field input{font:inherit;font-size:15px;padding:10px 11px;border:1px solid var(--line);border-radius:6px;background:var(--bg-3);color:var(--text);width:100%}
+.auth-field input:focus{outline:2px solid var(--focus);outline-offset:1px}
+.auth-msg{min-height:20px;font-size:13px;line-height:1.4;margin:2px 0 12px}
+.auth-msg.err{color:var(--def-ink)}
+.auth-msg.ok{color:var(--ok)}
+#authSubmit{width:100%}
+#authSubmit[hidden]{display:none}
+#authSubmit[disabled]{opacity:.6;cursor:progress}
+.auth-links{display:flex;justify-content:space-between;gap:12px;margin-top:14px;font-size:13px}
+.auth-links button{background:none;border:0;padding:0;font:inherit;color:var(--focus);cursor:pointer;text-decoration:underline}
+.auth-links button[hidden]{display:none}
+.acct-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 dialog{background:var(--bg-2);color:var(--text);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:0;width:min(640px,92vw);max-height:86vh}
 dialog::backdrop{background:rgba(0,0,0,.55)}
 .dlg-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
@@ -625,6 +660,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
       <span>The Playbook <em>Caller</em></span>
     </div>
     <div class="spacer"></div>
+    <button class="btn" id="btnAccount" hidden title="Your account and sync">Account</button>
     <button class="btn" id="btnInstall" hidden title="Install The Playbook Caller on this device">Install app</button>
     <button class="btn" id="btnTheme" title="Toggle light / dark theme">Light theme</button>
   </header>
@@ -801,6 +837,33 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
   <div class="gl-foot">Teams, seasons and coaches come from the titles listed in the FootballXOs.com <a href="https://www.footballxos.com/downloads/offense/" target="_blank" rel="noopener noreferrer">offense</a> and <a href="https://www.footballxos.com/free-football-playbooks/defense/" target="_blank" rel="noopener noreferrer">defense</a> playbook archives; the special-teams studies have no archive listing. No playbook was downloaded or reproduced: the summaries are written for this board from general football history, and the formation links are this board's closest matches.</div>
 </dialog>
 
+<dialog id="auth" aria-labelledby="authTitle">
+  <div class="dlg-head"><h3 id="authTitle">Sign in</h3></div>
+  <div class="dlg-body">
+    <p class="auth-sub" id="authSub"></p>
+    <div class="auth-tabs" id="authTabs"><button class="btn sm" type="button" data-view="signin" aria-pressed="true">Sign in</button><button class="btn sm" type="button" data-view="signup" aria-pressed="false">Create account</button></div>
+    <form id="authForm" novalidate>
+      <div class="auth-field" data-f="name"><label for="authName">Your name</label><input id="authName" type="text" autocomplete="name" maxlength="60"></div>
+      <div class="auth-field" data-f="email"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" spellcheck="false"></div>
+      <div class="auth-field" data-f="password"><label for="authPassword" id="authPasswordLabel">Password</label><input id="authPassword" type="password" autocomplete="current-password"></div>
+      <div class="auth-field" data-f="password2"><label for="authPassword2">Confirm new password</label><input id="authPassword2" type="password" autocomplete="new-password"></div>
+      <div class="auth-msg" id="authMsg" role="status" aria-live="polite"></div>
+      <button class="btn" id="authSubmit" type="submit">Sign in</button>
+    </form>
+    <div class="auth-links"><button type="button" id="authForgot">Forgot password?</button><button type="button" id="authBack" hidden>Back to sign in</button></div>
+  </div>
+</dialog>
+
+<dialog id="account" aria-labelledby="accountTitle">
+  <div class="dlg-head"><h3 id="accountTitle">Account</h3><button class="btn sm" id="accountClose">Close</button></div>
+  <div class="dlg-body">
+    <p><b id="acctName"></b><br><span class="muted" id="acctEmail"></span></p>
+    <p class="muted" id="acctSync"></p>
+    <p class="auth-sub">Your custom formations and plays are saved to your account and follow you to any device you sign in on. This browser keeps a working copy, so the board also works offline; changes sync when you are back online.</p>
+    <div class="acct-row"><button class="btn sm" id="acctSyncNow">Sync now</button><button class="btn sm" id="acctSignOut">Sign out</button></div>
+  </div>
+</dialog>
+
 <dialog id="help" aria-labelledby="helpTitle">
   <div class="dlg-head"><h3 id="helpTitle">How to use The Playbook Caller</h3><button class="btn sm" id="helpClose">Close</button></div>
   <div class="dlg-body">
@@ -846,6 +909,14 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
 <script>
 (function(){
 'use strict';
+
+/* ==========================================================================
+   CONFIG — accounts (Supabase). Leave both empty to run without sign-in.
+   url:     your project URL, e.g. https://abcdefghijklmnop.supabase.co
+   anonKey: the project's public "anon" key (safe to ship in a web page; row-level
+            security in supabase/schema.sql keeps each user's data private)
+   ========================================================================== */
+var ACCOUNTS = { url: '', anonKey: '' };
 
 /* ==========================================================================
    DATA  — edit formations here. See the comment block at the top of the file.
@@ -4759,6 +4830,239 @@ function init(){
   render(false); renderDrawer();
   if (!store.get('formationsBoard.seenHelp', false)){ store.set('formationsBoard.seenHelp', true); openHelp(); }
 }
+
+/* ===== ACCOUNTS: Supabase sign-in gate + cloud sync of custom formations and plays ===== */
+(function(){
+  var URL_ = String(ACCOUNTS.url || '').replace(/\/+$/, ''), KEY = String(ACCOUNTS.anonKey || '');
+  var btnAccount = $('#btnAccount');
+  if (!URL_ || !KEY){ btnAccount.hidden = true; console.info('The Playbook Caller: accounts are off. Fill ACCOUNTS.url and ACCOUNTS.anonKey in the CONFIG block to turn on sign-in and sync.'); return; }
+
+  var KEY_SESSION = 'formationsBoard.session.v1', KEY_SYNC = 'formationsBoard.sync.v1';
+  var app = $('#app'), dlg = $('#auth'), acct = $('#account'), form = $('#authForm'), msgEl = $('#authMsg'), submit = $('#authSubmit');
+  var session = null, gated = false, syncing = false, busy = false, pushTimer = 0, lastPull = 0, recoveryPending = false, view = 'signin';
+  var syncMeta = store.get(KEY_SYNC, null) || { owner: null, dirty: 0, lastSync: 0 };
+  var rawSet = store.set, rawDel = store.del;
+  function saveMeta(){ rawSet(KEY_SYNC, syncMeta); }
+
+  /* ---- local writes to the library mark the account dirty and schedule a push ---- */
+  store.set = function(k, v){ var ok = rawSet(k, v); if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS)) markDirty(); return ok; };
+  store.del = function(k){ rawDel(k); if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS)) markDirty(); };
+  function markDirty(){ syncMeta.dirty = Date.now(); saveMeta(); renderAccount(); schedulePush(); }
+  function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(function(){ push().catch(function(){}); }, 1500); }
+
+  /* ---- HTTP ---- */
+  function api(path, opts){
+    opts = opts || {};
+    var h = { 'apikey': KEY, 'Content-Type': 'application/json' };
+    if (opts.auth !== false && session) h['Authorization'] = 'Bearer ' + session.access_token;
+    if (opts.headers) Object.keys(opts.headers).forEach(function(k){ h[k] = opts.headers[k]; });
+    return fetch(URL_ + path, { method: opts.method || 'GET', headers: h, body: opts.body == null ? undefined : JSON.stringify(opts.body) })
+      .then(function(r){ return r.text().then(function(t){ var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {} if (!r.ok) throw httpError(r.status, j); return j; }); },
+            function(){ var e = new Error('No connection. Check your network and try again.'); e.offline = true; throw e; });
+  }
+  function httpError(status, j){
+    var m = j && (j.msg || j.message || j.error_description || (typeof j.error === 'string' ? j.error : '')) || ('Request failed (' + status + ')');
+    if (/invalid login credentials/i.test(m)) m = 'Wrong email or password.';
+    if (/email not confirmed/i.test(m)) m = 'Confirm your email first: open the link we sent you, then sign in.';
+    if (/rate limit/i.test(m)) m = 'Too many attempts. Wait a minute and try again.';
+    var e = new Error(String(m)); e.status = status; return e;
+  }
+
+  /* ---- session ---- */
+  function pickUser(u){ u = u || {}; return { id: u.id || '', email: u.email || '', name: (u.user_metadata && u.user_metadata.name) || '' }; }
+  function setSession(s){
+    session = s ? { access_token: s.access_token, refresh_token: s.refresh_token, expires_at: s.expires_at ? s.expires_at * 1000 : Date.now() + ((+s.expires_in || 3600) * 1000), user: s.user && s.user.id ? pickUser(s.user) : (session && session.user) || pickUser(null) } : null;
+    if (session) rawSet(KEY_SESSION, session); else rawDel(KEY_SESSION);
+    renderAccount();
+  }
+  var refreshing = null;
+  function refresh(){
+    if (refreshing) return refreshing;
+    var tok = session && session.refresh_token;
+    refreshing = api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', auth: false, body: { refresh_token: tok } })
+      .then(function(s){ refreshing = null; setSession(s); }, function(err){ refreshing = null; if (err.status && err.status < 500){ signOutLocal(); openGate('Your session expired. Sign in again.', 'info'); } throw err; });
+    return refreshing;
+  }
+  function ensureFresh(){ if (!session) return Promise.reject(new Error('Not signed in')); return session.expires_at - Date.now() > 60000 ? Promise.resolve() : refresh(); }
+  function authed(path, opts){
+    return ensureFresh().then(function(){ return api(path, opts); }).catch(function(err){
+      if (err.status === 401 && session) return refresh().then(function(){ return api(path, opts); });
+      throw err;
+    });
+  }
+  function fillUser(){ return session.user.id ? Promise.resolve() : authed('/auth/v1/user').then(function(u){ session.user = pickUser(u); rawSet(KEY_SESSION, session); renderAccount(); }); }
+
+  /* ---- data row ---- */
+  function pull(){
+    return authed('/rest/v1/user_data?select=custom_formations,custom_plays,updated_at&user_id=eq.' + encodeURIComponent(session.user.id), { headers: { 'Accept': 'application/json' } })
+      .then(function(rows){ return rows && rows[0] ? rows[0] : null; });
+  }
+  function push(){
+    if (!session || !session.user.id || !navigator.onLine) return Promise.resolve(false);
+    var stamp = Date.now();
+    return authed('/rest/v1/user_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: { user_id: session.user.id, custom_formations: custom, custom_plays: customPlays, updated_at: new Date(stamp).toISOString() } })
+      .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return true; });
+  }
+  function applyRemote(row){
+    syncing = true;
+    try {
+      custom = (Array.isArray(row.custom_formations) ? row.custom_formations : []).map(sanitizeFormation).filter(function(f){ return f && f.id && !DEFAULT_IDS[f.id]; });
+      customPlays = (Array.isArray(row.custom_plays) ? row.custom_plays : []).map(sanitizePlay).filter(Boolean);
+      saveCustom(); rawSet(KEY_PLAYS, customPlays);
+      rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false);
+    } finally { syncing = false; }
+  }
+  /* Called after sign-in and when the app comes back to the foreground. Same account as the last
+     sync on this device: newer side wins. A different (or no) account: the account's data is kept
+     and anything this browser had that the account lacks is added to it, so nothing is lost. */
+  function reconcile(){
+    if (!session) return Promise.resolve();
+    lastPull = Date.now();
+    return fillUser().then(pull).then(function(row){
+      var localHas = custom.length || customPlays.length, sameOwner = syncMeta.owner === session.user.id;
+      if (!row){ syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return localHas ? push() : undefined; }
+      var remoteT = Date.parse(row.updated_at || '') || 0;
+      if (sameOwner){
+        if (syncMeta.dirty && syncMeta.dirty > remoteT) return push();
+        applyRemote(row); syncMeta.dirty = 0; syncMeta.lastSync = Date.now(); saveMeta(); renderAccount(); return;
+      }
+      if (localHas){
+        var rf = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp = Array.isArray(row.custom_plays) ? row.custom_plays : [], fid = {}, pid = {};
+        rf.forEach(function(f){ if (f && f.id) fid[f.id] = 1; }); rp.forEach(function(p){ if (p && p.id) pid[p.id] = 1; });
+        row.custom_formations = rf.concat(custom.filter(function(f){ return !fid[f.id]; }));
+        row.custom_plays = rp.concat(customPlays.filter(function(p){ return !pid[p.id]; }));
+        applyRemote(row); syncMeta.owner = session.user.id; saveMeta(); return push();
+      }
+      applyRemote(row); syncMeta.dirty = 0; syncMeta.owner = session.user.id; syncMeta.lastSync = Date.now(); saveMeta(); renderAccount();
+    });
+  }
+
+  /* ---- gate ---- */
+  var VIEWS = {
+    signin: { title: 'Sign in', sub: 'The Playbook Caller is for registered users. Sign in, or create an account, to open the board.', fields: ['email', 'password'], submit: 'Sign in', tabs: true, forgot: true, pw: 'current-password', pwLabel: 'Password' },
+    signup: { title: 'Create account', sub: 'Your custom formations and plays will be saved to your account and follow you to any device.', fields: ['name', 'email', 'password'], submit: 'Create account', tabs: true, pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
+    forgot: { title: 'Reset password', sub: 'Enter your email and we will send you a link to choose a new password.', fields: ['email'], submit: 'Send reset link', back: true },
+    reset:  { title: 'New password', sub: 'Choose a new password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'New password (at least 8 characters)' },
+    check:  { title: 'Check your email', sub: '', fields: [], submit: null, back: true }
+  };
+  function setMsg(text, kind){ msgEl.textContent = text || ''; msgEl.className = 'auth-msg' + (kind ? ' ' + kind : ''); }
+  function firstInput(){ return $('#authForm .auth-field:not([hidden]) input'); }
+  function showView(v, keepMsg){
+    view = v; var V = VIEWS[v];
+    $('#authTitle').textContent = V.title; $('#authSub').textContent = V.sub; $('#authSub').hidden = !V.sub;
+    $('#authTabs').hidden = !V.tabs; $$('#authTabs button').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.view === v)); });
+    $$('#authForm .auth-field').forEach(function(f){ f.hidden = V.fields.indexOf(f.dataset.f) < 0; });
+    submit.hidden = !V.submit; if (V.submit) submit.textContent = V.submit;
+    $('#authForgot').hidden = !V.forgot; $('#authBack').hidden = !V.back;
+    if (V.pw){ $('#authPassword').setAttribute('autocomplete', V.pw); $('#authPasswordLabel').textContent = V.pwLabel; }
+    if (!keepMsg) setMsg('');
+    var first = firstInput(); if (first && dlg.open) setTimeout(function(){ first.focus(); }, 30);
+  }
+  function openGate(msg, kind){
+    gated = true; app.setAttribute('inert', ''); app.classList.add('gated');
+    showView(recoveryPending ? 'reset' : 'signin'); if (msg) setMsg(msg, kind || 'info');
+    if (dlg.showModal){ if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
+    var first = firstInput(); if (first) setTimeout(function(){ first.focus(); }, 30);
+  }
+  function closeGate(){ gated = false; app.removeAttribute('inert'); app.classList.remove('gated'); if (dlg.open){ if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } }
+  dlg.addEventListener('cancel', function(e){ e.preventDefault(); });                                  // Escape must not close the gate
+  document.addEventListener('keydown', function(e){ if (gated) e.stopImmediatePropagation(); }, true); // no board shortcuts behind it
+  $('#authTabs').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b) showView(b.dataset.view); });
+  $('#authForgot').addEventListener('click', function(){ showView('forgot'); });
+  $('#authBack').addEventListener('click', function(){ showView('signin'); });
+
+  function setBusy(on){ busy = on; submit.disabled = on; }
+  form.addEventListener('submit', function(e){
+    e.preventDefault(); if (busy) return;
+    var email = $('#authEmail').value.trim().toLowerCase(), pw = $('#authPassword').value, pw2 = $('#authPassword2').value, name = $('#authName').value.trim();
+    var needEmail = VIEWS[view].fields.indexOf('email') >= 0, needPw = VIEWS[view].fields.indexOf('password') >= 0;
+    if (needEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setMsg('Enter a valid email address.', 'err');
+    if (needPw && pw.length < 8) return setMsg('The password needs at least 8 characters.', 'err');
+    if (view === 'reset' && pw !== pw2) return setMsg('The two passwords do not match.', 'err');
+    if (view === 'signup' && !name) return setMsg('Tell us your name.', 'err');
+    setBusy(true); setMsg('');
+    var p;
+    if (view === 'signin'){
+      p = api('/auth/v1/token?grant_type=password', { method: 'POST', auth: false, body: { email: email, password: pw } }).then(function(s){ setSession(s); return enter(); });
+    } else if (view === 'signup'){
+      p = api('/auth/v1/signup', { method: 'POST', auth: false, body: { email: email, password: pw, data: { name: name } } }).then(function(r){
+        var u = r && (r.user || r);
+        if (u && Array.isArray(u.identities) && !u.identities.length){ showView('signin', true); setMsg('That email already has an account. Sign in instead.', 'err'); return; }
+        if (r && r.access_token){ setSession(r); return enter(); }
+        showView('check'); setMsg('We sent a confirmation link to ' + email + '. Open it, then come back and sign in.', 'ok');
+      });
+    } else if (view === 'forgot'){
+      p = api('/auth/v1/recover', { method: 'POST', auth: false, body: { email: email } }).then(function(){ showView('check'); setMsg('If ' + email + ' has an account, a reset link is on its way. Open it on this device to choose a new password.', 'ok'); });
+    } else if (view === 'reset'){
+      p = authed('/auth/v1/user', { method: 'PUT', body: { password: pw } }).then(function(){ recoveryPending = false; clearHash(); toast('Password updated'); return enter(); });
+    } else { p = Promise.resolve(); }
+    p.then(function(){ setBusy(false); if (!gated) form.reset(); }, function(err){ setBusy(false); setMsg(err.message || 'Something went wrong.', 'err'); });
+  });
+  function enter(){
+    closeGate(); renderAccount();
+    return reconcile().then(function(){ toast('Signed in as ' + (session.user.name || session.user.email)); }, function(err){ if (session) toast(err.offline ? 'Signed in. Sync will run when you are back online.' : 'Signed in, but sync failed: ' + err.message); });
+  }
+
+  /* ---- account dialog ---- */
+  function fmtSync(){
+    if (syncMeta.dirty) return navigator.onLine ? 'Changes waiting to sync' : 'Changes saved here; they will sync when you are back online';
+    if (!syncMeta.lastSync) return 'Nothing synced yet';
+    var m = Math.round((Date.now() - syncMeta.lastSync) / 60000);
+    return 'Synced ' + (m < 1 ? 'just now' : m < 60 ? m + ' min ago' : new Date(syncMeta.lastSync).toLocaleString());
+  }
+  function renderAccount(){
+    btnAccount.hidden = !session;
+    if (!session) return;
+    btnAccount.textContent = session.user.name || (session.user.email || 'Account').split('@')[0];
+    $('#acctName').textContent = session.user.name || 'Signed in'; $('#acctEmail').textContent = session.user.email; $('#acctSync').textContent = fmtSync();
+  }
+  function openAccount(){ renderAccount(); if (acct.showModal){ if (!acct.open) acct.showModal(); } else acct.setAttribute('open', ''); }
+  function closeAccount(){ if (acct.open){ if (acct.close) acct.close(); else acct.removeAttribute('open'); } }
+  btnAccount.addEventListener('click', openAccount);
+  $('#accountClose').addEventListener('click', closeAccount);
+  acct.addEventListener('click', function(e){ if (e.target === acct) closeAccount(); });
+  $('#acctSyncNow').addEventListener('click', function(){
+    var b = $('#acctSyncNow'); b.disabled = true; b.textContent = 'Syncing\u2026';
+    reconcile().then(function(){ toast('Synced'); }, function(err){ toast('Sync failed: ' + err.message); }).then(function(){ b.disabled = false; b.textContent = 'Sync now'; renderAccount(); });
+  });
+  function signOutLocal(){
+    session = null; rawDel(KEY_SESSION);
+    syncing = true;
+    try { custom = []; customPlays = []; rawDel(KEY_CUSTOM); rawDel(KEY_PLAYS); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; }
+    syncMeta = { owner: null, dirty: 0, lastSync: 0 }; saveMeta(); renderAccount();
+  }
+  $('#acctSignOut').addEventListener('click', function(){
+    var done = function(){
+      var tok = session && session.access_token;
+      signOutLocal(); closeAccount(); openGate('Signed out.', 'ok');
+      if (tok) fetch(URL_ + '/auth/v1/logout', { method: 'POST', headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + tok } }).catch(function(){});
+    };
+    if (!syncMeta.dirty) return done();
+    if (!navigator.onLine){ if (window.confirm('You are offline and have changes that have not synced. Sign out anyway and lose them on this device?')) done(); return; }
+    push().then(done, function(){ if (window.confirm('Your latest changes could not be synced. Sign out anyway and lose them on this device?')) done(); });
+  });
+
+  /* ---- start: stored session, or tokens arriving in the URL from a confirmation / reset link ---- */
+  function readHash(){
+    var h = location.hash.replace(/^#/, ''); if (!/(^|&)(access_token|error)=/.test(h)) return null;
+    var p = {}; h.split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) p[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); }); return p;
+  }
+  function clearHash(){ try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; } }
+  var stored = store.get(KEY_SESSION, null); if (stored && stored.access_token) session = stored;
+  var startMsg = '', startKind = 'info', hp = readHash();
+  if (hp){
+    if (hp.access_token){ setSession({ access_token: hp.access_token, refresh_token: hp.refresh_token, expires_in: hp.expires_in, user: null }); recoveryPending = hp.type === 'recovery'; if (!recoveryPending) clearHash(); }
+    else if (hp.error_description){ startMsg = hp.error_description; startKind = 'err'; clearHash(); }
+  }
+  window.addEventListener('online', function(){ if (session && syncMeta.dirty) schedulePush(); renderAccount(); });
+  window.addEventListener('offline', renderAccount);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && session && !gated && navigator.onLine && Date.now() - lastPull > 300000) reconcile().catch(function(){}); });
+
+  if (recoveryPending) openGate('', 'info');
+  else if (session){ closeGate(); renderAccount(); reconcile().catch(function(){}); }
+  else openGate(startMsg, startKind);
+})();
 
 /* ===== PWA: service worker + install prompt ===== */
 (function(){
