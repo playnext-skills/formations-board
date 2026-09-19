@@ -39,8 +39,15 @@ still works as a plain page; only install and offline are unavailable there.
 
 ## Live site
 
-Deployed on GitHub Pages from the `gh-pages` branch of `playnext-skills/formations-board`:
-**https://playnext-skills.github.io/formations-board/**
+**https://theplaybookcaller.com/** — Cloudflare Pages project `theplaybookcaller` (account
+Playnextcp@gmail.com), built from the `main` branch of `playnext-skills/formations-board`.
+Every push to `main` deploys automatically in about a minute; there is no build step
+(framework preset None, output directory = repository root). `_headers` keeps `sw.js` and
+the page uncached and adds security headers. The project's own hostname is
+`theplaybookcaller.pages.dev`.
+
+The earlier GitHub Pages copy at `https://playnext-skills.github.io/formations-board/` still
+serves from the `gh-pages` branch; it is no longer the canonical address.
 
 ## Accounts and sync (Supabase)
 
@@ -62,8 +69,8 @@ ships in the page.
    [`supabase/schema.sql`](supabase/schema.sql), *Run*. It creates `user_data` with row-level
    security so a user can only ever read or write their own row.
 3. **Point auth at the site.** *Authentication → URL Configuration*: set **Site URL** to
-   `https://playnext-skills.github.io/formations-board/` and add the same URL under
-   **Redirect URLs**. Confirmation and password-reset emails link back here; without this they
+   `https://theplaybookcaller.com/` and add the same URL under **Redirect URLs** (the app also
+   sends its own address as `redirect_to`, so every host it runs on must be on that list). Confirmation and password-reset emails link back here; without this they
    land on localhost and fail.
 4. **Decide on email confirmation.** *Authentication → Providers → Email*. Leave
    *Confirm email* on for a public sign-up (the app tells new users to check their inbox), or turn
@@ -107,9 +114,9 @@ ships in the page.
 2. Bump `VERSION` at the top of `sw.js` (for example `formations-board-v2`). Without the bump,
    installed copies keep serving the cached shell until the browser's own 24-hour service
    worker check runs.
-3. Commit, then push to both branches (`main` is the working branch, `gh-pages` is what Pages
-   serves): `git push origin main && git push origin main:gh-pages`. The site refreshes within
-   about a minute.
+3. Commit and `git push origin main`. Cloudflare Pages deploys it within about a minute
+   (the Deployments tab of the project shows progress). Pushing `main:gh-pages` as well keeps
+   the old GitHub Pages copy current, but nothing depends on it any more.
    To host it anywhere else, upload `index.html`, `manifest.webmanifest`, `sw.js` and `icons/` to the same directory on
    an **https** host. The manifest `scope` and `start_url` are relative, so any directory works,
    but `sw.js` must be served as JavaScript from that directory (a CMS that wraps uploaded
