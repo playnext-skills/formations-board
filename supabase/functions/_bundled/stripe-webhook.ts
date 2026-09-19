@@ -91,7 +91,8 @@ async function upsertSubscription(sub: Stripe.Subscription) {
     interval: plan?.interval ?? item?.price?.recurring?.interval ?? "month",
     status: sub.status,
     seat_limit: plan?.seat_limit ?? 1,
-    current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    // API versions from 2025-03 carry the period on the subscription item, older ones on the subscription.
+    current_period_end: (function(){ const t = (sub as unknown as { current_period_end?: number }).current_period_end ?? (item as unknown as { current_period_end?: number } | undefined)?.current_period_end; return t ? new Date(t * 1000).toISOString() : null; })(),
     cancel_at_period_end: !!sub.cancel_at_period_end,
     updated_at: new Date().toISOString(),
   }, { onConflict: "id" });
