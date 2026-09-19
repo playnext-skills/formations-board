@@ -16,14 +16,21 @@ async function userIdForCustomer(customerId: string, sub?: Stripe.Subscription):
   return (customer as Stripe.Customer).metadata?.supabase_user_id ?? null;
 }
 
-async function upsertSubscription(sub: Stripe.Subscription) {
+async function upsertSubscription(sub: Stripe.Subscription, eventCreated?: number) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const userId = await userIdForCustomer(customerId, sub);
   if (!userId) { console.warn("No user for customer", customerId); return; }
   const item = sub.items.data[0];
   const priceId = item?.price?.id ?? "";
   const { data: plan } = await admin.from("plans").select("plan, interval, seat_limit").eq("price_id", priceId).maybeSingle();
-  await admin.from("subscriptions").upsert({
+  // An unknown price must fail loudly (Stripe retries) rather than silently write a 1-seat row.
+  if (!plan) throw new Error(`Price ${priceId} is not in public.plans`);
+  // Out-of-order delivery: never let an older event overwrite a newer one.
+  if (eventCreated) {
+    const { data: cur } = await admin.from("subscriptions").select("last_event_at").eq("id", sub.id).maybeSingle();
+    if (cur?.last_event_at && Date.parse(cur.last_event_at) > eventCreated * 1000) { console.warn("stale event ignored", sub.id); return; }
+  }
+  const { error: subErr } = await admin.from("subscriptions").upsert({
     id: sub.id,
     user_id: userId,
     stripe_customer_id: customerId,
@@ -35,8 +42,11 @@ async function upsertSubscription(sub: Stripe.Subscription) {
     current_period_end: (function(){ const t = (sub as unknown as { current_period_end?: number }).current_period_end ?? (item as unknown as { current_period_end?: number } | undefined)?.current_period_end; return t ? new Date(t * 1000).toISOString() : null; })(),
     cancel_at_period_end: !!sub.cancel_at_period_end,
     updated_at: new Date().toISOString(),
+    last_event_at: new Date((eventCreated ?? Math.floor(Date.now() / 1000)) * 1000).toISOString(),
   }, { onConflict: "id" });
-  await admin.from("profiles").upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: "user_id" });
+  if (subErr) throw subErr;
+  const { error: profErr } = await admin.from("profiles").upsert({ user_id: userId, stripe_customer_id: customerId }, { onConflict: "user_id" });
+  if (profErr) throw profErr;
 }
 
 Deno.serve(async (req) => {
@@ -56,21 +66,27 @@ Deno.serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId), event.created);
         break;
       }
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
       case "customer.subscription.paused":
-      case "customer.subscription.resumed":
-        await upsertSubscription(event.data.object as Stripe.Subscription);
+      case "customer.subscription.resumed": {
+        // Always read the current state from Stripe rather than trusting a possibly stale payload.
+        const s = event.data.object as Stripe.Subscription;
+        await upsertSubscription(await getStripe().subscriptions.retrieve(s.id), event.created);
         break;
+      }
       case "invoice.payment_failed":
       case "invoice.paid": {
         const inv = event.data.object as Stripe.Invoice;
-        const subId = typeof inv.subscription === "string" ? inv.subscription : inv.subscription?.id;
-        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
+        // 2025-04+ API versions moved the subscription reference under invoice.parent.
+        const parentRef = (inv as unknown as { parent?: { subscription_details?: { subscription?: string | { id: string } } } }).parent?.subscription_details?.subscription;
+        const raw = inv.subscription ?? parentRef;
+        const subId = typeof raw === "string" ? raw : raw?.id;
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId), event.created);
         break;
       }
       default:

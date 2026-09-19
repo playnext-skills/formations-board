@@ -68,35 +68,7 @@ grant select on public.subscriptions to authenticated;
 -- ---------------------------------------------------------------- the entitlement rule
 -- active  = trial still running, or a subscription that is trialing/active,
 --           or past_due within a 7-day grace window.
-create or replace function public.entitlement(uid uuid)
-returns table (active boolean, reason text, plan text, status text, trial_ends_at timestamptz, period_end timestamptz, grace_until timestamptz)
-language sql stable security definer set search_path = public as $$
-  with p as (select trial_ends_at from public.profiles where user_id = uid),
-       s as (
-         select plan, status, current_period_end,
-                case when status = 'past_due' then coalesce(current_period_end, updated_at) + interval '7 days' end as grace_until
-         from public.subscriptions
-         where user_id = uid
-         order by case status when 'active' then 0 when 'trialing' then 1 when 'past_due' then 2 else 3 end, updated_at desc
-         limit 1
-       )
-  select
-    case
-      when s.status in ('active', 'trialing') then true
-      when s.status = 'past_due' and now() < s.grace_until then true
-      when s.status is null and p.trial_ends_at > now() then true
-      else false
-    end as active,
-    case
-      when s.status in ('active', 'trialing') then 'subscription'
-      when s.status = 'past_due' and now() < s.grace_until then 'grace'
-      when s.status is null and p.trial_ends_at > now() then 'trial'
-      when s.status is null then 'trial_ended'
-      else 'lapsed'
-    end as reason,
-    s.plan, s.status, p.trial_ends_at, s.current_period_end, s.grace_until
-  from p left join s on true;
-$$;
+-- entitlement() is defined ONCE, in hardening.sql (team- and comp-aware). Run that file last.
 grant execute on function public.entitlement(uuid) to authenticated;
 revoke execute on function public.entitlement(uuid) from anon;
 

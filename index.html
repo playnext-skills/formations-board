@@ -118,7 +118,7 @@
 <meta name="application-name" content="The Playbook Caller">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Playbook Caller">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
@@ -4957,7 +4957,7 @@ function init(){
     if (refreshing) return refreshing;
     var tok = session && session.refresh_token;
     refreshing = api('/auth/v1/token?grant_type=refresh_token', { method: 'POST', auth: false, body: { refresh_token: tok } })
-      .then(function(s){ refreshing = null; setSession(s); }, function(err){ refreshing = null; if (err.status && err.status < 500){ signOutLocal(); openGate('Your session expired. Sign in again.', 'info'); } throw err; });
+      .then(function(s){ refreshing = null; setSession(s); }, function(err){ refreshing = null; if (err.status && err.status < 500){ dropSession(); openGate('Your session expired. Sign in again.', 'info'); } throw err; });
     return refreshing;
   }
   function ensureFresh(){ if (!session) return Promise.reject(new Error('Not signed in')); return session.expires_at - Date.now() > 60000 ? Promise.resolve() : refresh(); }
@@ -4993,7 +4993,7 @@ function init(){
     var stamp = Date.now();
     return authed('/rest/v1/user_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: { user_id: session.user.id, custom_formations: custom.filter(function(f){ return !f.team; }), custom_plays: customPlays.filter(function(p){ return !p.team; }), updated_at: new Date(stamp).toISOString() } })
-      .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return true; },
+      .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; syncMeta.seen = idSet({ custom_formations: custom.filter(function(f){ return !f.team; }), custom_plays: customPlays.filter(function(p){ return !p.team; }) }); saveMeta(); renderAccount(); return true; },
             function(err){ if (err.status === 403 || err.status === 401){ fetchEntitlement().then(function(e){ if (e && !e.active){ toast('Your plan has ended: changes stay on this device until you choose a plan.'); renderAccount(); } }).catch(function(){}); } throw err; });
   }
   /* Replace the coach's own items (team items stay untouched, or the reverse). */
@@ -5024,7 +5024,7 @@ function init(){
     var stamp = Date.now();
     return authed('/rest/v1/team_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: { team_id: team.id, custom_formations: custom.filter(function(f){ return f.team; }), custom_plays: customPlays.filter(function(p){ return p.team; }), updated_at: new Date(stamp).toISOString(), updated_by: session.user.id } })
-      .then(function(){ if (teamMeta.dirty && teamMeta.dirty <= stamp) teamMeta.dirty = 0; teamMeta.lastSync = stamp; saveTeamMeta(); renderAccount(); return true; });
+      .then(function(){ if (teamMeta.dirty && teamMeta.dirty <= stamp) teamMeta.dirty = 0; teamMeta.lastSync = stamp; teamMeta.seen = idSet({ custom_formations: custom.filter(function(f){ return f.team; }), custom_plays: customPlays.filter(function(p){ return p.team; }) }); saveTeamMeta(); renderAccount(); return true; });
   }
   /* Team library: newer side wins per blob, and anything a coach added that the team does not
      have yet is kept and pushed, so two coaches saving at once do not erase each other. */
@@ -5036,16 +5036,16 @@ function init(){
       var remoteT = Date.parse(row.updated_at || '') || 0, localNewer = teamMeta.dirty && teamMeta.dirty > remoteT;
       var rf = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp = Array.isArray(row.custom_plays) ? row.custom_plays : [], fid = {}, pid = {};
       rf.forEach(function(f){ if (f && f.id) fid[f.id] = 1; }); rp.forEach(function(p){ if (p && p.id) pid[p.id] = 1; });
-      var extraF = mineT.filter(function(f){ return !fid[f.id]; }), extraP = mineP.filter(function(p){ return !pid[p.id]; });
+      var seenT = teamMeta.seen || {}, extraF = mineT.filter(function(f){ return !fid[f.id] && !seenT[f.id]; }), extraP = mineP.filter(function(p){ return !pid[p.id] && !seenT[p.id]; });
       if (localNewer){ row.custom_formations = mineT.concat(rf.filter(function(f){ return !mineT.some(function(m){ return m.id === f.id; }); })); row.custom_plays = mineP.concat(rp.filter(function(p){ return !mineP.some(function(m){ return m.id === p.id; }); })); }
       else { row.custom_formations = rf.concat(extraF); row.custom_plays = rp.concat(extraP); }
-      applyRemote(row, true);
+      applyRemote(row, true); teamMeta.seen = idSet(row); saveTeamMeta();
       if (localNewer || extraF.length || extraP.length) return pushTeam();
       teamMeta.dirty = 0; teamMeta.lastSync = Date.now(); saveTeamMeta(); renderAccount();
     });
   }
   function teamAction(name, args, okMsg){
-    return rpc(name, args).then(function(t){ if (t !== undefined && name !== 'leave_team'){ team = t || null; if (team) rawSet(KEY_TEAM, team); else rawDel(KEY_TEAM); } if (okMsg) toast(okMsg); return loadTeam(); }, function(err){ toast(err.message || 'That did not work'); });
+    return rpc(name, args).then(function(t){ if (t !== undefined && name !== 'leave_team'){ team = t || null; if (team) rawSet(KEY_TEAM, team); else rawDel(KEY_TEAM); } if (okMsg) toast(okMsg); return loadTeam(); }, function(err){ toast(err.message || 'That did not work'); return false; });
   }
   function inviteCoach(email){
     return authed('/functions/v1/invite-coach', { method: 'POST', body: { email: email } }).then(function(r){
@@ -5063,6 +5063,7 @@ function init(){
   function renderTeam(){
     var host = $('#acctTeam'); if (!session){ host.hidden = true; return; }
     host.hidden = false;
+    if (host.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;   // never wipe what is being typed
     var planSeats = ent && ent.reason === 'subscription' && ent.plan && ent.plan !== 'personal';
     if (!onTeam()){
       host.innerHTML = '<h4>Team</h4>' + (planSeats
@@ -5083,12 +5084,12 @@ function init(){
   }
   $('#acctTeam').addEventListener('click', function(e){
     var b = e.target.closest('button'); if (!b) return;
-    if (b.id === 'teamCreate'){ var nm = $('#teamName').value.trim(); if (!nm) return toast('Give the team a name'); teamAction('create_team', { p_name: nm }, 'Team created').then(function(){ setScope('team'); }); }
+    if (b.id === 'teamCreate'){ var nm = $('#teamName').value.trim(); if (!nm) return toast('Give the team a name'); teamAction('create_team', { p_name: nm }, 'Team created').then(function(r){ if (r !== false) setScope('team'); }); }
     else if (b.id === 'teamRename'){ var n2 = window.prompt('Team name', team.name); if (n2 && n2.trim()) teamAction('rename_team', { p_name: n2.trim() }, 'Team renamed'); }
     else if (b.id === 'teamInviteBtn'){ var em = $('#teamInvite').value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('Enter a valid email address'); b.disabled = true; inviteCoach(em).then(function(){ b.disabled = false; }); }
     else if (b.dataset.revoke){ teamAction('revoke_invite', { p_email: b.dataset.revoke }, 'Invite revoked'); }
     else if (b.dataset.remove){ if (window.confirm('Remove this coach from the team? Their own library is untouched.')) teamAction('remove_member', { p_user: b.dataset.remove }, 'Coach removed'); }
-    else if (b.id === 'teamLeave'){ if (window.confirm('Leave the team? You keep your own library; the team library stays with the team.')) teamAction('leave_team', {}, 'You left the team').then(function(){ team = null; rawDel(KEY_TEAM); syncing = true; try { custom = custom.filter(function(f){ return !f.team; }); customPlays = customPlays.filter(function(p){ return !p.team; }); saveCustom(); rawSet(KEY_PLAYS, customPlays); rememberIds(); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; } setScope('mine'); renderTeam(); }); }
+    else if (b.id === 'teamLeave'){ if (window.confirm('Leave the team? You keep your own library; the team library stays with the team.')) teamAction('leave_team', {}, 'You left the team').then(function(r){ if (r === false) return; team = null; rawDel(KEY_TEAM); syncing = true; try { custom = custom.filter(function(f){ return !f.team; }); customPlays = customPlays.filter(function(p){ return !p.team; }); saveCustom(); rawSet(KEY_PLAYS, customPlays); rememberIds(); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; } setScope('mine'); renderTeam(); }); }
     else if (b.dataset.scope){ setScope(b.dataset.scope); }
   });
   /* Called after sign-in and when the app comes back to the foreground. Same account as the last
@@ -5099,6 +5100,7 @@ function init(){
     lastPull = Date.now();
     return fillUser().then(loadProfile).then(acceptInvites).then(loadTeam).then(reconcileOwn).then(reconcileTeam);
   }
+  function idSet(row){ var m = {}; (row.custom_formations || []).forEach(function(f){ if (f && f.id) m[f.id] = 1; }); (row.custom_plays || []).forEach(function(p){ if (p && p.id) m[p.id] = 1; }); return m; }
   function reconcileOwn(){
     return pull().then(function(row){
       var mineF = custom.filter(function(f){ return !f.team; }), mineP = customPlays.filter(function(p){ return !p.team; });
@@ -5107,7 +5109,12 @@ function init(){
       var remoteT = Date.parse(row.updated_at || '') || 0;
       if (sameOwner){
         if (syncMeta.dirty && syncMeta.dirty > remoteT) return push();
-        applyRemote(row); syncMeta.dirty = 0; syncMeta.lastSync = Date.now(); saveMeta(); renderAccount(); return;
+        var rf0 = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp0 = Array.isArray(row.custom_plays) ? row.custom_plays : [], f0 = {}, p0 = {};
+        rf0.forEach(function(f){ if (f && f.id) f0[f.id] = 1; }); rp0.forEach(function(p){ if (p && p.id) p0[p.id] = 1; });
+        var seen = syncMeta.seen || {}, addF = mineF.filter(function(f){ return !f0[f.id] && !seen[f.id]; }), addP = mineP.filter(function(p){ return !p0[p.id] && !seen[p.id]; });
+        row.custom_formations = rf0.concat(addF); row.custom_plays = rp0.concat(addP);
+        applyRemote(row); syncMeta.seen = idSet(row); if (addF.length || addP.length) return push();
+        syncMeta.dirty = 0; syncMeta.lastSync = Date.now(); saveMeta(); renderAccount(); return;
       }
       if (localHas){
         var rf = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp = Array.isArray(row.custom_plays) ? row.custom_plays : [], fid = {}, pid = {};
@@ -5131,7 +5138,7 @@ function init(){
   /* Offline or a transient error: trust the last answer. A user we have never checked gets in
      (every account starts with a trial) and is re-checked at the next sign-in. */
   function checkEntitlement(){
-    return fetchEntitlement().catch(function(err){
+    return fetchEntitlement().then(function(e){ return e || ent || { active: true, reason: 'unchecked' }; }, function(err){
       if (err.status === 401) throw err;
       return ent || { active: true, reason: 'unchecked' };
     });
@@ -5193,19 +5200,19 @@ function init(){
     if (b.dataset.plan) startCheckout(b.dataset.plan);
   });
   $('#authNotNow').addEventListener('click', function(){ if (plansDismissable){ if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } });
-  $('#authSignOut').addEventListener('click', function(){ signOutLocal(); openGate('Signed out.', 'ok'); });
+  $('#authSignOut').addEventListener('click', signOutFlow);
   /* Back from Stripe: the webhook can lag the redirect by a few seconds, so poll briefly. */
   function afterCheckoutReturn(){
     var q = location.search;
     if (!/[?&]checkout=(success|cancel)/.test(q)) return false;
     var ok = /checkout=success/.test(q);
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
-    if (!ok){ toast('Checkout cancelled'); return false; }
+    if (!ok){ if (dlg.open) setMsg('Checkout cancelled. Pick a plan whenever you are ready.', 'info'); else toast('Checkout cancelled'); return false; }
     var tries = 0, tick = function(){
       fetchEntitlement().then(function(e){
-        if (e && e.reason === 'subscription'){ closeGate(); renderAccount(); toast('Welcome aboard: your ' + planLabel(e.plan) + ' plan is active'); return; }
-        if (++tries < 10) setTimeout(tick, 3000); else toast('Payment received; your plan will show in a moment.');
-      }, function(){ if (++tries < 10) setTimeout(tick, 3000); });
+        if (e && e.reason === 'subscription'){ closeGate(); renderAccount(); toast('Welcome aboard: your ' + planLabel(e.plan) + ' plan is active'); reconcile().catch(function(){}); return; }
+        if (++tries < 10) setTimeout(tick, 3000); else { if (dlg.open) setMsg('Payment received; your plan will show in a moment.', 'info'); else toast('Payment received; your plan will show in a moment.'); startWithSession(); }
+      }, function(){ if (++tries < 10) setTimeout(tick, 3000); else startWithSession(); });
     };
     tick(); return true;
   }
@@ -5230,7 +5237,7 @@ function init(){
     signin: { title: 'Sign in', sub: 'The Playbook Caller is for registered users. Sign in, or create an account, to open the board.', fields: ['email', 'password'], submit: 'Sign in', tabs: true, forgot: true, pw: 'current-password', pwLabel: 'Password' },
     signup: { title: 'Create account', sub: 'Your custom formations and plays will be saved to your account and follow you to any device.', fields: ['name', 'email', 'password'], submit: 'Create account', tabs: true, pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
     forgot: { title: 'Reset password', sub: 'Enter your email and we will send you a link to choose a new password.', fields: ['email'], submit: 'Send reset link', back: true },
-    reset:  { title: 'Choose a password', sub: 'Choose a password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
+    reset:  { title: 'Choose a password', sub: 'Choose a password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'Password (at least 8 characters)', back: true },
     check:  { title: 'Check your email', sub: '', fields: [], submit: null, back: true },
     plans:  { title: 'Choose a plan', sub: '', fields: [], submit: null, plans: true }
   };
@@ -5255,11 +5262,11 @@ function init(){
     var first = firstInput(); if (first) setTimeout(function(){ first.focus(); }, 30);
   }
   function closeGate(){ gated = false; app.removeAttribute('inert'); app.classList.remove('gated'); if (dlg.open){ if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } }
-  dlg.addEventListener('cancel', function(e){ e.preventDefault(); });                                  // Escape must not close the gate
+  dlg.addEventListener('cancel', function(e){ if (gated || !plansDismissable) e.preventDefault(); });                                  // Escape must not close the gate
   document.addEventListener('keydown', function(e){ if (gated) e.stopImmediatePropagation(); }, true); // no board shortcuts behind it
   $('#authTabs').addEventListener('click', function(e){ var b = e.target.closest('button'); if (b) showView(b.dataset.view); });
   $('#authForgot').addEventListener('click', function(){ showView('forgot'); });
-  $('#authBack').addEventListener('click', function(){ showView('signin'); });
+  $('#authBack').addEventListener('click', function(){ if (recoveryPending){ recoveryPending = false; clearHash(); if (session && !session.user.id) dropSession(); } showView('signin'); });
 
   function setBusy(on){ busy = on; submit.disabled = on; }
   form.addEventListener('submit', function(e){
@@ -5286,7 +5293,7 @@ function init(){
     } else if (view === 'reset'){
       p = authed('/auth/v1/user', { method: 'PUT', body: { password: pw } }).then(function(){ recoveryPending = false; clearHash(); toast('Password updated'); return enter(); });
     } else { p = Promise.resolve(); }
-    p.then(function(){ setBusy(false); if (!gated) form.reset(); }, function(err){ setBusy(false); setMsg(err.message || 'Something went wrong.', 'err'); });
+    p.then(function(){ setBusy(false); $('#authPassword').value = ''; $('#authPassword2').value = ''; if (!gated) form.reset(); }, function(err){ setBusy(false); setMsg(err.message || 'Something went wrong.', 'err'); });
   });
   function enter(){
     return checkEntitlement().then(function(e){
@@ -5330,8 +5337,14 @@ function init(){
   acct.addEventListener('click', function(e){ if (e.target === acct) closeAccount(); });
   $('#acctSyncNow').addEventListener('click', function(){
     var b = $('#acctSyncNow'); b.disabled = true; b.textContent = 'Syncing\u2026';
-    reconcile().then(function(){ toast('Synced'); }, function(err){ toast('Sync failed: ' + err.message); }).then(function(){ b.disabled = false; b.textContent = 'Sync now'; renderAccount(); });
+    reconcile().then(function(){ renderAccount(); $('#acctSync').textContent = 'Synced just now'; }, function(err){ $('#acctSync').textContent = 'Sync failed: ' + (err.message || 'try again'); }).then(function(){ b.disabled = false; b.textContent = 'Sync now'; });
   });
+  /* Session gone (expired, revoked): forget who was signed in but keep the library on disk so
+     unsynced work survives; the gate blocks the board until they sign back in. */
+  function dropSession(){
+    session = null; rawDel(KEY_SESSION); ent = null; rawDel(KEY_ENT); renderTrial();
+    team = null; rawDel(KEY_TEAM); renderScope(); renderTeam(); renderAccount();
+  }
   function signOutLocal(){
     session = null; rawDel(KEY_SESSION); ent = null; rawDel(KEY_ENT); renderTrial();
     team = null; rawDel(KEY_TEAM); teamMeta = { dirty: 0, lastSync: 0 }; saveTeamMeta(); knownIds = {}; renderScope(); renderTeam();
@@ -5339,16 +5352,18 @@ function init(){
     try { custom = []; customPlays = []; rawDel(KEY_CUSTOM); rawDel(KEY_PLAYS); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; }
     syncMeta = { owner: null, dirty: 0, lastSync: 0 }; saveMeta(); renderAccount();
   }
-  $('#acctSignOut').addEventListener('click', function(){
+  function signOutFlow(){
     var done = function(){
       var tok = session && session.access_token;
       signOutLocal(); closeAccount(); openGate('Signed out.', 'ok');
       if (tok) fetch(URL_ + '/auth/v1/logout', { method: 'POST', headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + tok } }).catch(function(){});
     };
-    if (!syncMeta.dirty) return done();
+    var dirty = syncMeta.dirty || teamMeta.dirty;
+    if (!dirty) return done();
     if (!navigator.onLine){ if (window.confirm('You are offline and have changes that have not synced. Sign out anyway and lose them on this device?')) done(); return; }
-    push().then(done, function(){ if (window.confirm('Your latest changes could not be synced. Sign out anyway and lose them on this device?')) done(); });
-  });
+    Promise.all([push(), pushTeam()]).then(done, function(){ if (window.confirm('Your latest changes could not be synced (your plan may have ended). Sign out anyway and lose them on this device?')) done(); });
+  }
+  $('#acctSignOut').addEventListener('click', signOutFlow);
 
   /* ---- start: stored session, or tokens arriving in the URL from a confirmation / reset link ---- */
   function readHash(){
@@ -5356,27 +5371,28 @@ function init(){
     var p = {}; h.split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) p[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); }); return p;
   }
   function clearHash(){ try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; } }
-  rememberIds();
+  loadCustom(); loadCustomPlays(); rememberIds();   // the library must exist before ids are remembered
   var stored = store.get(KEY_SESSION, null); if (stored && stored.access_token) session = stored;
   var startMsg = '', startKind = 'info', hp = readHash();
   if (hp){
-    if (hp.access_token){ setSession({ access_token: hp.access_token, refresh_token: hp.refresh_token, expires_in: hp.expires_in, user: null }); recoveryPending = hp.type === 'recovery' || hp.type === 'invite'; if (!recoveryPending) clearHash(); }
+    if (hp.access_token){ session = null; setSession({ access_token: hp.access_token, refresh_token: hp.refresh_token, expires_in: hp.expires_in, user: null }); recoveryPending = hp.type === 'recovery' || hp.type === 'invite'; if (!recoveryPending) clearHash(); }
     else if (hp.error_description){ startMsg = hp.error_description; startKind = 'err'; clearHash(); }
   }
   window.addEventListener('online', function(){ if (session && syncMeta.dirty) schedulePush(); renderAccount(); });
   window.addEventListener('offline', renderAccount);
   document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && session && !gated && navigator.onLine && Date.now() - lastPull > 300000) reconcile().catch(function(){}); });
 
+  function startWithSession(){
+    checkEntitlement().then(function(e){
+      if (!e.active){ renderAccount(); openPlans(false); return; }
+      closeGate(); renderAccount(); return reconcile().then(promptPlansIfTrial, promptPlansIfTrial);
+    }).catch(function(){});
+  }
   if (recoveryPending) openGate('', 'info');
   else if (session){
     if (ent && ent.active){ closeGate(); renderAccount(); }         // last known answer opens the board at once (offline-safe)
     else openGate('Checking your plan\u2026', 'info');
-    if (!afterCheckoutReturn()){
-      checkEntitlement().then(function(e){
-        if (!e.active){ renderAccount(); openPlans(false); return; }
-        closeGate(); renderAccount(); return reconcile().then(promptPlansIfTrial, promptPlansIfTrial);
-      }).catch(function(){});
-    }
+    if (!afterCheckoutReturn()) startWithSession();
   }
   else openGate(startMsg, startKind);
   window.__pcOpenPlans = function(){ openPlans(true); };   // exposed as FormationsBoard.plans() for testing

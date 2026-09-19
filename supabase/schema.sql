@@ -15,13 +15,8 @@ drop policy if exists "own row: select" on public.user_data;
 create policy "own row: select" on public.user_data
   for select to authenticated using (auth.uid() = user_id);
 
-drop policy if exists "own row: insert" on public.user_data;
-create policy "own row: insert" on public.user_data
-  for insert to authenticated with check (auth.uid() = user_id);
+-- insert/update policies live in hardening.sql (gated on entitlement()).
 
-drop policy if exists "own row: update" on public.user_data;
-create policy "own row: update" on public.user_data
-  for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- The anon key can never touch this table (no policy for the anon role), and nobody can delete
 -- rows from the app; deleting the auth user removes the row through the foreign key.

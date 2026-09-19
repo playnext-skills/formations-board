@@ -12,6 +12,6 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);
-    return json({ error: (e as Error).message ?? "Portal failed" }, 500);
+    return json({ error: "Billing could not be opened. Please try again in a moment." }, 500);
   }
 });

@@ -74,7 +74,9 @@ Deno.serve(async (req) => {
 
     // Run the RPC as the caller so its owner / seat checks apply.
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const asUser = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!anon) return json({ error: "Invites are not configured on the server." }, 503);
+    const asUser = createClient(Deno.env.get("SUPABASE_URL")!, anon, {
       global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false },
     });
     const { data: team, error } = await asUser.rpc("invite_coach", { p_email: em });
@@ -96,6 +98,6 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);
-    return json({ error: (e as Error).message ?? "Invite failed" }, 500);
+    return json({ error: "The invite could not be sent. Please try again in a moment." }, 500);
   }
 });

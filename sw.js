@@ -1,10 +1,12 @@
 /* The Playbook Caller service worker.
    Bump VERSION whenever index.html, the manifest or an icon changes: the old cache is
-   dropped on activate and the page shows a "reload to update" toast. */
-var VERSION = 'formations-board-v16';
+   dropped on activate and the page shows a "reload to update" toast.
+   Hosting facts this file is written against: Cloudflare Pages redirects /index.html to /
+   (308), so the shell is cached under './' only, and a redirected or error response is
+   never stored for a navigation. */
+var VERSION = 'formations-board-v17';
 var SHELL = [
   './',
-  './index.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -15,7 +17,10 @@ var SHELL = [
 var NAV_TIMEOUT_MS = 4000;
 
 self.addEventListener('install', function(e){
-  e.waitUntil(caches.open(VERSION).then(function(c){ return c.addAll(SHELL); }).then(function(){ return self.skipWaiting(); }));
+  e.waitUntil(caches.open(VERSION).then(function(c){
+    // Bypass the HTTP cache so a VERSION bump never re-precaches a week-old icon.
+    return c.addAll(SHELL.map(function(u){ return new Request(u, { cache: 'reload' }); }));
+  }).then(function(){ return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function(e){
@@ -24,29 +29,34 @@ self.addEventListener('activate', function(e){
   }).then(function(){ return self.clients.claim(); }));
 });
 
-function withTimeout(promise, ms){
-  return new Promise(function(resolve, reject){
-    var t = setTimeout(function(){ reject(new Error('timeout')); }, ms);
-    promise.then(function(v){ clearTimeout(t); resolve(v); }, function(err){ clearTimeout(t); reject(err); });
-  });
+function cacheable(res){ return !!res && res.ok && !res.redirected && res.type === 'basic'; }
+function putShell(res){
+  return caches.open(VERSION).then(function(c){ return c.put('./', res); }).catch(function(){});
 }
 
 self.addEventListener('fetch', function(e){
   var req = e.request;
   if (req.method !== 'GET') return;
   var url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;   // external links (glossary sources) pass through
+  if (url.origin !== self.location.origin) return;   // Supabase, Stripe, external links pass through
 
   if (req.mode === 'navigate'){
-    // Network first (revalidated, never the HTTP cache) so a deploy shows up on the next open;
-    // cached shell when offline or slow.
+    // Network first, revalidated. The network promise keeps running past the timeout so a
+    // slow but fresh copy still lands in the cache for the next open (stale-while-revalidate).
+    var network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin', redirect: 'manual' }).then(function(res){
+      if (cacheable(res)) putShell(res.clone());
+      return res;
+    });
+    var timer = new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, NAV_TIMEOUT_MS); });
     e.respondWith(
-      withTimeout(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }), NAV_TIMEOUT_MS).then(function(res){
-        var copy = res.clone();
-        caches.open(VERSION).then(function(c){ c.put('./index.html', copy); });
-        return res;
+      Promise.race([network, timer]).then(function(res){
+        // A redirect (e.g. /index.html -> /) is handed back untouched; the browser follows it.
+        if (res.type === 'opaqueredirect' || res.redirected) return res;
+        if (res.ok) return res;
+        return caches.match('./').then(function(hit){ return hit || res; });
       }).catch(function(){
-        return caches.match('./index.html');
+        network.catch(function(){});
+        return caches.match('./').then(function(hit){ return hit || new Response('Offline and no cached copy yet. Open the app once while online.', { status: 503, headers: { 'Content-Type': 'text/plain' } }); });
       })
     );
     return;
@@ -55,11 +65,11 @@ self.addEventListener('fetch', function(e){
   // Everything else (manifest, icons): cache first, refresh in the background.
   e.respondWith(
     caches.match(req).then(function(cached){
-      var network = fetch(req).then(function(res){
-        if (res && res.ok){ var copy = res.clone(); caches.open(VERSION).then(function(c){ c.put(req, copy); }); }
+      var refresh = fetch(req).then(function(res){
+        if (cacheable(res)){ var copy = res.clone(); caches.open(VERSION).then(function(c){ return c.put(req, copy); }).catch(function(){}); }
         return res;
       }).catch(function(){ return cached; });
-      return cached || network;
+      return cached || refresh;
     })
   );
 });

@@ -9,7 +9,9 @@ it an installable, offline-capable Progressive Web App.
 | `index.html` | **The application** and the source of truth. All data lives in its first `<script>` block; the header comment documents the schema and how to add formations, case studies, glossary terms and matrix rows. |
 | `manifest.webmanifest` | Web app manifest: name, icons, colours, `standalone` display, scope `./`. |
 | `sw.js` | Service worker. Pre-caches the app shell on install, serves it when offline, drops stale caches on activate. |
-| `supabase/schema.sql` | Table and row-level-security policies for the optional accounts + sync feature. Run once in the Supabase SQL editor. |
+| `supabase/*.sql` | Database: `schema.sql`, `billing.sql`, `plans.sql`, `teams.sql`, then `hardening.sql` (canonical entitlement, grants). `comp.sql` grants a plan by hand. |
+| `functions/supabase/[[path]].js` | Cloudflare Pages Function that returns 404 for `/supabase/*`, so the SQL and Edge Function sources in the repo are never served publicly. |
+| `404.html` | Served for unknown paths (with the `_headers` security headers) instead of Cloudflare's headerless SPA fallback. |
 | `icons/` | `icon-192.png`, `icon-512.png` (any), `icon-512-maskable.png` (Android adaptive), `apple-touch-icon.png` (iOS home screen), `favicon-64.png`. Navy and red play-call mark (O, route arrow, X) matching the brand mark in the top bar. |
 
 ## Running it locally
@@ -65,9 +67,9 @@ ships in the page.
 
 1. **Create the project.** Sign in at https://supabase.com, *New project*, any name, pick the
    nearest region, set a database password (you will not need it in the app). Free tier is fine.
-2. **Create the table.** Left menu *SQL Editor* → *New query*, paste the whole of
-   [`supabase/schema.sql`](supabase/schema.sql), *Run*. It creates `user_data` with row-level
-   security so a user can only ever read or write their own row.
+2. **Create the tables.** Left menu *SQL Editor* → *New query*, then run these files in order:
+   `supabase/schema.sql`, `billing.sql`, `plans.sql`, `teams.sql` and finally `hardening.sql`
+   (the last one holds the canonical `entitlement()` and locks down grants; it is safe to re-run).
 3. **Point auth at the site.** *Authentication → URL Configuration*: set **Site URL** to
    `https://theplaybookcaller.com/` and add the same URL under **Redirect URLs** (the app also
    sends its own address as `redirect_to`, so every host it runs on must be on that list). Confirmation and password-reset emails link back here; without this they

@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     // One live subscription per user: send existing subscribers to the portal instead.
     const { data: existing } = await admin.from("subscriptions").select("id")
-      .eq("user_id", user.id).in("status", ["active", "trialing", "past_due"]).limit(1);
+      .eq("user_id", user.id).in("status", ["active", "trialing", "past_due", "comp"]).limit(1);
     if (existing && existing.length) return json({ error: "You already have a plan. Use Manage billing to change it.", portal: true }, 409);
 
     const meta = (user.user_metadata ?? {}) as Record<string, string>;
@@ -98,6 +98,6 @@ Deno.serve(async (req) => {
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);
-    return json({ error: (e as Error).message ?? "Checkout failed" }, 500);
+    return json({ error: "Checkout could not start. Please try again in a moment." }, 500);
   }
 });

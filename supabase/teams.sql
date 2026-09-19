@@ -1,4 +1,6 @@
--- The Playbook Caller — Phase 2: teams. Run once in the Supabase SQL editor, after billing.sql.
+-- The Playbook Caller — Phase 2: teams. Run once in the Supabase SQL editor, after billing.sql,
+-- then run hardening.sql, which holds the canonical entitlement()/team_seat_limit()/create_team()/
+-- invite_coach()/accept_invites() (comp expiry, confirmed-email invites, row locks).
 -- A team is owned by the coach whose subscription pays for it (Team / Program / Unlimited plan).
 -- Members share one library (team_data) and inherit the owner's entitlement.
 

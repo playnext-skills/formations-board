@@ -2,7 +2,6 @@
   "name": "The Playbook Caller",
   "short_name": "Playbook Caller",
   "description": "American football formation reference for the Atlantis University Athletics Sports Information Department. Offense, defense and special-teams sets with matchups, case studies, glossary and a whiteboard editor. Works offline.",
-  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
