@@ -5124,6 +5124,7 @@ function init(){
   function entText(){
     if (!ent) return 'Plan: not checked yet';
     if (ent.reason === 'trial') return 'Free trial: ' + daysLeft(ent.trial_ends_at) + ' day' + (daysLeft(ent.trial_ends_at) === 1 ? '' : 's') + ' left';
+    if (ent.reason === 'subscription' && ent.status === 'comp') return planLabel(ent.plan) + ' plan, complimentary' + (ent.period_end ? ' until ' + new Date(ent.period_end).toLocaleDateString() : '');
     if (ent.reason === 'subscription') return planLabel(ent.plan) + ' plan' + (ent.period_end ? ', renews ' + new Date(ent.period_end).toLocaleDateString() : '') + (ent.status === 'trialing' ? ' (trial)' : '');
     if (ent.reason === 'team') return planLabel(ent.plan) + ' plan through your team';
     if (ent.reason === 'grace') return planLabel(ent.plan) + ' plan: payment failed, update your card to keep access';
@@ -5294,7 +5295,7 @@ function init(){
     $('#acctPlan').textContent = entText();
     var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
     $('#acctPlanBtn').textContent = hasSub ? 'Manage billing' : 'Choose a plan';
-    $('#acctPlanBtn').hidden = !!(ent && ent.reason === 'team');
+    $('#acctPlanBtn').hidden = !!(ent && (ent.reason === 'team' || ent.status === 'comp'));
     renderTrial(); renderScope(); renderTeam();
   }
   $('#acctPlanBtn').addEventListener('click', function(){

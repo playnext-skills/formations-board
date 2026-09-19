@@ -107,6 +107,18 @@ ships in the page.
 - The **Account** button in the top bar shows who is signed in, the sync state, *Sync now* and
   *Sign out*.
 
+### Discounts and complimentary plans
+
+- Stripe promotion codes (test sandbox): `PLAYBOOK15` = 15% off for the life of the subscription,
+  `PLAYBOOK100` = 100% off. A coach types the code on the Stripe checkout page; a fully
+  discounted plan asks for no card. Restrict a code to one customer or a redemption count from
+  the coupon's page in Stripe. Recreate both in live mode when going live.
+- A plan can also be granted without Stripe: insert a row into `subscriptions` with an id
+  starting `comp_`, `stripe_customer_id = 'comp'`, `status = 'comp'`, the plan, `seat_limit`
+  and a `current_period_end`. `entitlement()` treats `comp` as active until that date, the
+  Account dialog shows it as complimentary and hides Manage billing, and the webhook never
+  touches such rows. Example: `supabase/comp.sql`.
+
 ## Deploying and shipping a change
 
 1. Edit `index.html` as usual. Run `FormationsBoard.validate()` in the console after any data

@@ -49,7 +49,7 @@ language sql stable security definer set search_path = public as $$
   select coalesce((
     select s.seat_limit from public.teams t
     join public.subscriptions s on s.user_id = t.owner_id
-    where t.id = tid and s.status in ('active', 'trialing') and s.seat_limit > 1
+    where t.id = tid and s.status in ('active', 'trialing', 'comp') and s.seat_limit > 1
     order by s.updated_at desc limit 1
   ), 0);
 $$;
@@ -63,8 +63,8 @@ language sql stable security definer set search_path = public as $$
          select plan, status, current_period_end, seat_limit,
                 case when status = 'past_due' then coalesce(current_period_end, updated_at) + interval '7 days' end as grace_until
          from public.subscriptions
-         where user_id = uid
-         order by case status when 'active' then 0 when 'trialing' then 1 when 'past_due' then 2 else 3 end, updated_at desc
+         where user_id = uid and (status <> 'comp' or current_period_end is null or current_period_end > now())
+         order by case status when 'active' then 0 when 'comp' then 0 when 'trialing' then 1 when 'past_due' then 2 else 3 end, updated_at desc
          limit 1
        ),
        t as (
@@ -72,19 +72,19 @@ language sql stable security definer set search_path = public as $$
          from public.team_members m
          join public.teams tm on tm.id = m.team_id
          join public.subscriptions os on os.user_id = tm.owner_id
-         where m.user_id = uid and m.role = 'coach' and os.status in ('active', 'trialing') and os.seat_limit > 1
+         where m.user_id = uid and m.role = 'coach' and os.status in ('active', 'trialing', 'comp') and os.seat_limit > 1
          order by os.updated_at desc limit 1
        )
   select
     case
-      when s.status in ('active', 'trialing') then true
+      when s.status in ('active', 'trialing', 'comp') then true
       when s.status = 'past_due' and now() < s.grace_until then true
       when t.plan is not null then true
       when s.status is null and p.trial_ends_at > now() then true
       else false
     end as active,
     case
-      when s.status in ('active', 'trialing') then 'subscription'
+      when s.status in ('active', 'trialing', 'comp') then 'subscription'
       when s.status = 'past_due' and now() < s.grace_until then 'grace'
       when t.plan is not null then 'team'
       when s.status is null and p.trial_ends_at > now() then 'trial'
@@ -147,7 +147,7 @@ declare me uuid := auth.uid(); seats integer; tid uuid;
 begin
   if me is null then raise exception 'Not signed in'; end if;
   if exists (select 1 from public.team_members where user_id = me) then raise exception 'You are already on a team'; end if;
-  select seat_limit into seats from public.subscriptions where user_id = me and status in ('active', 'trialing') order by updated_at desc limit 1;
+  select seat_limit into seats from public.subscriptions where user_id = me and status in ('active', 'trialing', 'comp') order by updated_at desc limit 1;
   if coalesce(seats, 0) < 2 then raise exception 'A Team, Program or Unlimited plan is needed to create a team'; end if;
   insert into public.teams (name, owner_id) values (left(coalesce(nullif(trim(p_name), ''), 'My team'), 60), me) returning id into tid;
   insert into public.team_members (team_id, user_id, role) values (tid, me, 'owner');
