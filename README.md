@@ -9,7 +9,7 @@ it an installable, offline-capable Progressive Web App.
 | `index.html` | **The application** and the source of truth. All data lives in its first `<script>` block; the header comment documents the schema and how to add formations, case studies, glossary terms and matrix rows. |
 | `manifest.webmanifest` | Web app manifest: name, icons, colours, `standalone` display, scope `./`. |
 | `sw.js` | Service worker. Pre-caches the app shell on install, serves it when offline, drops stale caches on activate. |
-| `icons/` | `icon-192.png`, `icon-512.png` (any), `icon-512-maskable.png` (Android adaptive), `apple-touch-icon.png` (iOS home screen), `favicon-64.png`. Generated from the brand mark in the top bar. |
+| `icons/` | `icon-192.png`, `icon-512.png` (any), `icon-512-maskable.png` (Android adaptive), `apple-touch-icon.png` (iOS home screen), `favicon-64.png`. Navy and red play-call mark (O, route arrow, X) matching the brand mark in the top bar. |
 
 ## Running it locally
 
