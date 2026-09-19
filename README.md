@@ -46,8 +46,8 @@ Every push to `main` deploys automatically in about a minute; there is no build 
 the page uncached and adds security headers. The project's own hostname is
 `theplaybookcaller.pages.dev`.
 
-The earlier GitHub Pages copy at `https://playnext-skills.github.io/formations-board/` still
-serves from the `gh-pages` branch; it is no longer the canonical address.
+The earlier GitHub Pages copy was retired on 2026-09-19 (the `gh-pages` branch is gone); the
+repository's `main` branch is the only source and Cloudflare Pages the only host.
 
 ## Accounts and sync (Supabase)
 
@@ -127,8 +127,7 @@ ships in the page.
    installed copies keep serving the cached shell until the browser's own 24-hour service
    worker check runs.
 3. Commit and `git push origin main`. Cloudflare Pages deploys it within about a minute
-   (the Deployments tab of the project shows progress). Pushing `main:gh-pages` as well keeps
-   the old GitHub Pages copy current, but nothing depends on it any more.
+   (the Deployments tab of the project shows progress).
    To host it anywhere else, upload `index.html`, `manifest.webmanifest`, `sw.js` and `icons/` to the same directory on
    an **https** host. The manifest `scope` and `start_url` are relative, so any directory works,
    but `sw.js` must be served as JavaScript from that directory (a CMS that wraps uploaded
