@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
       customer,
       line_items: [{ price: price.price_id, quantity: 1 }],
       allow_promotion_codes: true,
+      payment_method_collection: "if_required",   // a 100% promotion code needs no card
       success_url: `${APP_URL}?checkout=success`,
       cancel_url: `${APP_URL}?checkout=cancel`,
       subscription_data: { metadata: { supabase_user_id: user.id, plan: price.plan, interval: price.interval } },
