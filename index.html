@@ -293,6 +293,22 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
 #btnAccount[hidden]{display:none}
+#btnTrial[hidden]{display:none}
+#btnTrial{border-color:var(--c-red)}
+#authPlans[hidden]{display:none}
+.plan-toggle{display:flex;justify-content:center;margin:0 0 14px}
+.plan-toggle .seg button{padding:6px 14px}
+.plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:480px){.plan-grid{grid-template-columns:1fr}}
+.plan-card{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg-3);display:flex;flex-direction:column;gap:6px}
+.plan-card h4{margin:0;font:800 18px/1 var(--display);letter-spacing:.04em;text-transform:uppercase}
+.plan-card h4{counter-increment:none}.plan-card h4::before{content:none}
+.plan-card .price{font-size:22px;font-weight:700}
+.plan-card .price small{font-size:12px;font-weight:400;color:var(--muted)}
+.plan-card .seats{font-size:12px;color:var(--muted)}
+.plan-card .btn{margin-top:auto}
+.plan-note{font-size:12px;color:var(--muted);margin:12px 0 0;line-height:1.4}
+.acct-plan{margin:0 0 6px}
 .dk-row .vsep{width:1px;align-self:stretch;margin:2px 4px;background:var(--line)}
 #colorSeg button[data-color]{display:none}
 #colorSeg.open button[data-color]{display:inline-flex}
@@ -667,6 +683,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
       <span>The Playbook <em>Caller</em></span>
     </div>
     <div class="spacer"></div>
+    <button class="btn" id="btnTrial" hidden title="Your free trial: choose a plan to keep saving after it ends">Trial</button>
     <button class="btn" id="btnAccount" hidden title="Your account and sync">Account</button>
     <button class="btn" id="btnInstall" hidden title="Install The Playbook Caller on this device">Install app</button>
     <button class="btn" id="btnTheme" title="Toggle light / dark theme">Light theme</button>
@@ -859,10 +876,11 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
       <div class="auth-field" data-f="email"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" spellcheck="false"></div>
       <div class="auth-field" data-f="password"><label for="authPassword" id="authPasswordLabel">Password</label><input id="authPassword" type="password" autocomplete="current-password"></div>
       <div class="auth-field" data-f="password2"><label for="authPassword2">Confirm new password</label><input id="authPassword2" type="password" autocomplete="new-password"></div>
+      <div id="authPlans" hidden></div>
       <div class="auth-msg" id="authMsg" role="status" aria-live="polite"></div>
       <button class="btn" id="authSubmit" type="submit">Sign in</button>
     </form>
-    <div class="auth-links"><button type="button" id="authForgot">Forgot password?</button><button type="button" id="authBack" hidden>Back to sign in</button></div>
+    <div class="auth-links"><button type="button" id="authForgot">Forgot password?</button><button type="button" id="authBack" hidden>Back to sign in</button><button type="button" id="authNotNow" hidden>Not now</button><button type="button" id="authSignOut" hidden>Sign out</button></div>
   </div>
 </dialog>
 
@@ -870,9 +888,10 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
   <div class="dlg-head"><h3 id="accountTitle">Account</h3><button class="btn sm" id="accountClose">Close</button></div>
   <div class="dlg-body">
     <p><b id="acctName"></b><br><span class="muted" id="acctEmail"></span></p>
+    <p class="acct-plan" id="acctPlan"></p>
     <p class="muted" id="acctSync"></p>
     <p class="auth-sub">Your custom formations and plays are saved to your account and follow you to any device you sign in on. This browser keeps a working copy, so the board also works offline; changes sync when you are back online.</p>
-    <div class="acct-row"><button class="btn sm" id="acctSyncNow">Sync now</button><button class="btn sm" id="acctSignOut">Sign out</button></div>
+    <div class="acct-row"><button class="btn sm primary" id="acctPlanBtn">Choose a plan</button><button class="btn sm" id="acctSyncNow">Sync now</button><button class="btn sm" id="acctSignOut">Sign out</button></div>
   </div>
 </dialog>
 
@@ -4870,6 +4889,7 @@ function init(){
   var RT = '?redirect_to=' + encodeURIComponent(APP_URL);
   var app = $('#app'), dlg = $('#auth'), acct = $('#account'), form = $('#authForm'), msgEl = $('#authMsg'), submit = $('#authSubmit');
   var session = null, gated = false, syncing = false, busy = false, pushTimer = 0, lastPull = 0, recoveryPending = false, view = 'signin';
+  var KEY_ENT = 'formationsBoard.entitlement.v1', ent = store.get('formationsBoard.entitlement.v1', null), plansCache = null, plansInterval = 'year', plansDismissable = false;
   var syncMeta = store.get(KEY_SYNC, null) || { owner: null, dirty: 0, lastSync: 0 };
   var rawSet = store.set, rawDel = store.del;
   function saveMeta(){ rawSet(KEY_SYNC, syncMeta); }
@@ -4932,7 +4952,8 @@ function init(){
     var stamp = Date.now();
     return authed('/rest/v1/user_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: { user_id: session.user.id, custom_formations: custom, custom_plays: customPlays, updated_at: new Date(stamp).toISOString() } })
-      .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return true; });
+      .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return true; },
+            function(err){ if (err.status === 403 || err.status === 401){ fetchEntitlement().then(function(e){ if (e && !e.active){ toast('Your plan has ended: changes stay on this device until you choose a plan.'); renderAccount(); } }).catch(function(){}); } throw err; });
   }
   function applyRemote(row){
     syncing = true;
@@ -4968,13 +4989,109 @@ function init(){
     });
   }
 
+  /* ---- entitlement: trial, subscription, or locked ---- */
+  function fetchEntitlement(){
+    return authed('/rest/v1/rpc/my_entitlement', { method: 'POST', body: {} }).then(function(rows){
+      var e = rows && rows[0] ? rows[0] : null;
+      if (e){ e.checkedAt = Date.now(); ent = e; rawSet(KEY_ENT, e); }
+      return e;
+    });
+  }
+  /* Offline or a transient error: trust the last answer. A user we have never checked gets in
+     (every account starts with a trial) and is re-checked at the next sign-in. */
+  function checkEntitlement(){
+    return fetchEntitlement().catch(function(err){
+      if (err.status === 401) throw err;
+      return ent || { active: true, reason: 'unchecked' };
+    });
+  }
+  function daysLeft(iso){ return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 86400000)); }
+  function planLabel(p){ return p === 'personal' ? 'Personal' : p === 'team' ? 'Team' : p === 'program' ? 'Program' : p === 'unlimited' ? 'Unlimited' : ''; }
+  function entText(){
+    if (!ent) return 'Plan: not checked yet';
+    if (ent.reason === 'trial') return 'Free trial: ' + daysLeft(ent.trial_ends_at) + ' day' + (daysLeft(ent.trial_ends_at) === 1 ? '' : 's') + ' left';
+    if (ent.reason === 'subscription') return planLabel(ent.plan) + ' plan' + (ent.period_end ? ', renews ' + new Date(ent.period_end).toLocaleDateString() : '') + (ent.status === 'trialing' ? ' (trial)' : '');
+    if (ent.reason === 'grace') return planLabel(ent.plan) + ' plan: payment failed, update your card to keep access';
+    if (ent.reason === 'trial_ended') return 'Your free trial has ended';
+    if (ent.reason === 'lapsed') return 'Your plan has ended';
+    return 'Plan: checking';
+  }
+  function loadPlans(){
+    if (plansCache) return Promise.resolve(plansCache);
+    return api('/rest/v1/plans?select=plan,interval,price_id,amount_cents,seat_limit,label&order=amount_cents', { auth: false }).then(function(rows){ plansCache = rows || []; return plansCache; });
+  }
+  function money(cents){ return '$' + (cents % 100 ? (cents / 100).toFixed(2) : (cents / 100)); }
+  function renderPlans(){
+    var host = $('#authPlans');
+    host.innerHTML = '<p class="auth-sub">' + esc(entText()) + '. Pick a plan to keep saving formations and plays' + (ent && ent.reason === 'trial' ? ' after the trial' : '') + '.</p><p class="muted" style="font-size:13px;margin:0 0 10px">Loading plans\u2026</p>';
+    loadPlans().then(function(rows){
+      var order = ['personal', 'team', 'program', 'unlimited'], cards = order.map(function(p){
+        var r = rows.filter(function(x){ return x.plan === p && x.interval === plansInterval; })[0]; if (!r) return '';
+        var seats = r.seat_limit >= 9999 ? 'Any staff size' : r.seat_limit === 1 ? '1 coach' : 'Up to ' + r.seat_limit + ' coaches';
+        var lib = p === 'personal' ? 'Private library' : 'Shared team library';
+        return '<div class="plan-card"><h4>' + esc(r.label) + '</h4><div class="price">' + money(r.amount_cents) + ' <small>/ ' + (plansInterval === 'year' ? 'year' : 'month') + '</small></div><div class="seats">' + seats + ' \u00b7 ' + lib + '</div><button class="btn sm primary" type="button" data-plan="' + p + '">Choose ' + esc(r.label) + '</button></div>';
+      }).join('');
+      host.innerHTML = '<p class="auth-sub">' + esc(entText()) + '. Pick a plan to keep saving formations and plays' + (ent && ent.reason === 'trial' ? ' after the trial' : '') + '.</p>' +
+        '<div class="plan-toggle"><div class="seg" role="group" aria-label="Billing period"><button type="button" data-interval="month" aria-pressed="' + (plansInterval === 'month') + '">Monthly</button><button type="button" data-interval="year" aria-pressed="' + (plansInterval === 'year') + '">Yearly \u00b7 2 months free</button></div></div>' +
+        '<div class="plan-grid">' + cards + '</div>' +
+        '<p class="plan-note">Team plans share one library across the staff (coming in the next release; buying now reserves the seats). Secure checkout by Stripe; cancel any time from Manage billing.</p>';
+    }, function(err){ host.innerHTML = '<p class="auth-sub">' + esc(entText()) + '.</p><p class="auth-msg err">Could not load the plans: ' + esc(err.message) + '</p>'; });
+  }
+  function startCheckout(plan){
+    setMsg('Opening secure checkout\u2026', 'info');
+    return authed('/functions/v1/create-checkout', { method: 'POST', body: { plan: plan, interval: plansInterval } }).then(function(r){
+      if (r && r.url){ location.href = r.url; return; }
+      setMsg((r && r.error) || 'Checkout did not start.', 'err');
+    }, function(err){ setMsg(err.message || 'Checkout did not start.', 'err'); });
+  }
+  function openPortal(){
+    toast('Opening billing\u2026');
+    return authed('/functions/v1/create-portal', { method: 'POST', body: {} }).then(function(r){ if (r && r.url) location.href = r.url; else toast((r && r.error) || 'Could not open billing.'); }, function(err){ toast(err.message || 'Could not open billing.'); });
+  }
+  function openPlans(dismissable){
+    plansDismissable = !!dismissable;
+    if (!dismissable){ gated = true; app.setAttribute('inert', ''); app.classList.add('gated'); }
+    showView('plans'); renderPlans();
+    if (dlg.showModal){ if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
+  }
+  $('#authPlans').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.interval){ plansInterval = b.dataset.interval; renderPlans(); return; }
+    if (b.dataset.plan) startCheckout(b.dataset.plan);
+  });
+  $('#authNotNow').addEventListener('click', function(){ if (plansDismissable){ if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } });
+  $('#authSignOut').addEventListener('click', function(){ signOutLocal(); openGate('Signed out.', 'ok'); });
+  /* Back from Stripe: the webhook can lag the redirect by a few seconds, so poll briefly. */
+  function afterCheckoutReturn(){
+    var q = location.search;
+    if (!/[?&]checkout=(success|cancel)/.test(q)) return false;
+    var ok = /checkout=success/.test(q);
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    if (!ok){ toast('Checkout cancelled'); return false; }
+    var tries = 0, tick = function(){
+      fetchEntitlement().then(function(e){
+        if (e && e.reason === 'subscription'){ closeGate(); renderAccount(); toast('Welcome aboard: your ' + planLabel(e.plan) + ' plan is active'); return; }
+        if (++tries < 10) setTimeout(tick, 3000); else toast('Payment received; your plan will show in a moment.');
+      }, function(){ if (++tries < 10) setTimeout(tick, 3000); });
+    };
+    tick(); return true;
+  }
+  function renderTrial(){
+    var b = $('#btnTrial');
+    if (!session || !ent || ent.reason !== 'trial'){ b.hidden = true; return; }
+    var d = daysLeft(ent.trial_ends_at);
+    b.hidden = d > 3; b.textContent = 'Trial: ' + d + ' day' + (d === 1 ? '' : 's') + ' left';
+  }
+  $('#btnTrial').addEventListener('click', function(){ openPlans(true); });
+
   /* ---- gate ---- */
   var VIEWS = {
     signin: { title: 'Sign in', sub: 'The Playbook Caller is for registered users. Sign in, or create an account, to open the board.', fields: ['email', 'password'], submit: 'Sign in', tabs: true, forgot: true, pw: 'current-password', pwLabel: 'Password' },
     signup: { title: 'Create account', sub: 'Your custom formations and plays will be saved to your account and follow you to any device.', fields: ['name', 'email', 'password'], submit: 'Create account', tabs: true, pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
     forgot: { title: 'Reset password', sub: 'Enter your email and we will send you a link to choose a new password.', fields: ['email'], submit: 'Send reset link', back: true },
     reset:  { title: 'New password', sub: 'Choose a new password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'New password (at least 8 characters)' },
-    check:  { title: 'Check your email', sub: '', fields: [], submit: null, back: true }
+    check:  { title: 'Check your email', sub: '', fields: [], submit: null, back: true },
+    plans:  { title: 'Choose a plan', sub: '', fields: [], submit: null, plans: true }
   };
   function setMsg(text, kind){ msgEl.textContent = text || ''; msgEl.className = 'auth-msg' + (kind ? ' ' + kind : ''); }
   function firstInput(){ return $('#authForm .auth-field:not([hidden]) input'); }
@@ -4985,6 +5102,7 @@ function init(){
     $$('#authForm .auth-field').forEach(function(f){ f.hidden = V.fields.indexOf(f.dataset.f) < 0; });
     submit.hidden = !V.submit; if (V.submit) submit.textContent = V.submit;
     $('#authForgot').hidden = !V.forgot; $('#authBack').hidden = !V.back;
+    $('#authPlans').hidden = !V.plans; $('#authNotNow').hidden = !(V.plans && plansDismissable); $('#authSignOut').hidden = !V.plans;
     if (V.pw){ $('#authPassword').setAttribute('autocomplete', V.pw); $('#authPasswordLabel').textContent = V.pwLabel; }
     if (!keepMsg) setMsg('');
     var first = firstInput(); if (first && dlg.open) setTimeout(function(){ first.focus(); }, 30);
@@ -5030,8 +5148,11 @@ function init(){
     p.then(function(){ setBusy(false); if (!gated) form.reset(); }, function(err){ setBusy(false); setMsg(err.message || 'Something went wrong.', 'err'); });
   });
   function enter(){
-    closeGate(); renderAccount();
-    return reconcile().then(function(){ toast('Signed in as ' + (session.user.name || session.user.email)); }, function(err){ if (session) toast(err.offline ? 'Signed in. Sync will run when you are back online.' : 'Signed in, but sync failed: ' + err.message); });
+    return checkEntitlement().then(function(e){
+      if (!e.active){ renderAccount(); openPlans(false); return; }
+      closeGate(); renderAccount();
+      return reconcile().then(function(){ toast('Signed in as ' + (session.user.name || session.user.email)); }, function(err){ if (session) toast(err.offline ? 'Signed in. Sync will run when you are back online.' : 'Signed in, but sync failed: ' + err.message); });
+    });
   }
 
   /* ---- account dialog ---- */
@@ -5046,7 +5167,16 @@ function init(){
     if (!session) return;
     btnAccount.textContent = session.user.name || (session.user.email || 'Account').split('@')[0];
     $('#acctName').textContent = session.user.name || 'Signed in'; $('#acctEmail').textContent = session.user.email; $('#acctSync').textContent = fmtSync();
+    $('#acctPlan').textContent = entText();
+    var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
+    $('#acctPlanBtn').textContent = hasSub ? 'Manage billing' : 'Choose a plan';
+    renderTrial();
   }
+  $('#acctPlanBtn').addEventListener('click', function(){
+    var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
+    closeAccount();
+    if (hasSub) openPortal(); else openPlans(!!(ent && ent.active));
+  });
   function openAccount(){ renderAccount(); if (acct.showModal){ if (!acct.open) acct.showModal(); } else acct.setAttribute('open', ''); }
   function closeAccount(){ if (acct.open){ if (acct.close) acct.close(); else acct.removeAttribute('open'); } }
   btnAccount.addEventListener('click', openAccount);
@@ -5057,7 +5187,7 @@ function init(){
     reconcile().then(function(){ toast('Synced'); }, function(err){ toast('Sync failed: ' + err.message); }).then(function(){ b.disabled = false; b.textContent = 'Sync now'; renderAccount(); });
   });
   function signOutLocal(){
-    session = null; rawDel(KEY_SESSION);
+    session = null; rawDel(KEY_SESSION); ent = null; rawDel(KEY_ENT); renderTrial();
     syncing = true;
     try { custom = []; customPlays = []; rawDel(KEY_CUSTOM); rawDel(KEY_PLAYS); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; }
     syncMeta = { owner: null, dirty: 0, lastSync: 0 }; saveMeta(); renderAccount();
@@ -5090,8 +5220,18 @@ function init(){
   document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && session && !gated && navigator.onLine && Date.now() - lastPull > 300000) reconcile().catch(function(){}); });
 
   if (recoveryPending) openGate('', 'info');
-  else if (session){ closeGate(); renderAccount(); reconcile().catch(function(){}); }
+  else if (session){
+    if (ent && ent.active){ closeGate(); renderAccount(); }         // last known answer opens the board at once (offline-safe)
+    else openGate('Checking your plan\u2026', 'info');
+    if (!afterCheckoutReturn()){
+      checkEntitlement().then(function(e){
+        if (!e.active){ renderAccount(); openPlans(false); return; }
+        closeGate(); renderAccount(); return reconcile();
+      }).catch(function(){});
+    }
+  }
   else openGate(startMsg, startKind);
+  window.__pcOpenPlans = function(){ openPlans(true); };   // exposed as FormationsBoard.plans() for testing
 })();
 
 /* ===== PWA: service worker + install prompt ===== */
@@ -5122,7 +5262,7 @@ function init(){
   });
 })();
 
-window.FormationsBoard = { validate: validateAll, formations: function(){ return clone(ALL); } };
+window.FormationsBoard = { validate: validateAll, formations: function(){ return clone(ALL); }, plans: window.__pcOpenPlans || null };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
