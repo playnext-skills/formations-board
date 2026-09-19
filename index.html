@@ -293,6 +293,8 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
 #btnAccount[hidden]{display:none}
+.acct-field{display:flex;gap:6px;align-items:center;margin:6px 0 10px}
+.acct-field input{flex:1;min-width:140px;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg-3);color:var(--text)}
 #btnScope[hidden]{display:none}
 .acct-team{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
 .acct-team h4{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
@@ -899,6 +901,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
   <div class="dlg-head"><h3 id="accountTitle">Account</h3><button class="btn sm" id="accountClose">Close</button></div>
   <div class="dlg-body">
     <p><b id="acctName"></b><br><span class="muted" id="acctEmail"></span></p>
+    <div class="acct-field"><input id="acctTeamName" placeholder="Team name (shown instead of your name)" maxlength="60" aria-label="Team name"><button class="btn sm" id="acctTeamNameSave" type="button">Save</button></div>
     <p class="acct-plan" id="acctPlan"></p>
     <p class="muted" id="acctSync"></p>
     <p class="auth-sub">Your custom formations and plays are saved to your account and follow you to any device you sign in on. This browser keeps a working copy, so the board also works offline; changes sync when you are back online.</p>
@@ -4965,6 +4968,20 @@ function init(){
     });
   }
   function fillUser(){ return session.user.id ? Promise.resolve() : authed('/auth/v1/user').then(function(u){ session.user = pickUser(u); rawSet(KEY_SESSION, session); renderAccount(); }); }
+  /* The profile row carries the coach's own team name, shown in place of their name. */
+  function loadProfile(){
+    if (!session || !session.user.id) return Promise.resolve();
+    return authed('/rest/v1/profiles?select=name,team_name&user_id=eq.' + encodeURIComponent(session.user.id), { headers: { 'Accept': 'application/json' } })
+      .then(function(rows){ var r = rows && rows[0]; if (r){ session.user.team_name = r.team_name || ''; if (r.name && !session.user.name) session.user.name = r.name; rawSet(KEY_SESSION, session); renderAccount(); } }, function(){});
+  }
+  function saveTeamName(v){
+    v = String(v || '').trim().slice(0, 60);
+    return authed('/rest/v1/profiles?user_id=eq.' + encodeURIComponent(session.user.id), { method: 'PATCH', headers: { 'Prefer': 'return=minimal' }, body: { team_name: v || null } })
+      .then(function(){ session.user.team_name = v; rawSet(KEY_SESSION, session); renderAccount(); toast(v ? 'Team name saved' : 'Team name cleared'); }, function(err){ toast(err.message || 'Could not save the team name'); });
+  }
+  function displayName(){ return (session && (session.user.team_name || (team && team.name) || session.user.name || (session.user.email || 'Account').split('@')[0])) || ''; }
+  $('#acctTeamNameSave').addEventListener('click', function(){ saveTeamName($('#acctTeamName').value); });
+  $('#acctTeamName').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); saveTeamName(this.value); } });
 
   /* ---- data row ---- */
   function pull(){
@@ -5080,7 +5097,7 @@ function init(){
   function reconcile(){
     if (!session) return Promise.resolve();
     lastPull = Date.now();
-    return fillUser().then(acceptInvites).then(loadTeam).then(reconcileOwn).then(reconcileTeam);
+    return fillUser().then(loadProfile).then(acceptInvites).then(loadTeam).then(reconcileOwn).then(reconcileTeam);
   }
   function reconcileOwn(){
     return pull().then(function(row){
@@ -5290,8 +5307,11 @@ function init(){
   function renderAccount(){
     btnAccount.hidden = !session;
     if (!session) return;
-    btnAccount.textContent = session.user.name || (session.user.email || 'Account').split('@')[0];
-    $('#acctName').textContent = session.user.name || 'Signed in'; $('#acctEmail').textContent = session.user.email; $('#acctSync').textContent = fmtSync();
+    btnAccount.textContent = displayName();
+    $('#acctName').textContent = displayName();
+    $('#acctEmail').textContent = (session.user.team_name || (team && team.name)) && session.user.name ? session.user.name + ' \u00b7 ' + session.user.email : session.user.email;
+    if (document.activeElement !== $('#acctTeamName')) $('#acctTeamName').value = session.user.team_name || '';
+    $('#acctSync').textContent = fmtSync();
     $('#acctPlan').textContent = entText();
     var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
     $('#acctPlanBtn').textContent = hasSub ? 'Manage billing' : 'Choose a plan';

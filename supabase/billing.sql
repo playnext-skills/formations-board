@@ -7,6 +7,7 @@ create table if not exists public.profiles (
   user_id            uuid primary key references auth.users (id) on delete cascade,
   email              text,
   name               text,
+  team_name          text,          -- shown in place of the coach's name
   trial_ends_at      timestamptz not null default (now() + interval '14 days'),
   stripe_customer_id text unique,
   created_at         timestamptz not null default now()
@@ -22,7 +23,7 @@ drop policy if exists "profiles: own row update name" on public.profiles;
 create policy "profiles: own row update name" on public.profiles
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 revoke all on public.profiles from anon;
-grant select, update (name) on public.profiles to authenticated;
+grant select, update (name, team_name) on public.profiles to authenticated;
 
 -- A profile row is created for every new auth user, and back-filled for existing ones.
 create or replace function public.handle_new_user() returns trigger
