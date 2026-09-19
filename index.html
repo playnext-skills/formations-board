@@ -293,6 +293,8 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
 #btnAccount[hidden]{display:none}
+.ed-hist{margin-left:6px}
+.ed-hist button[disabled]{opacity:.45;cursor:default}
 #app.gated{filter:blur(6px);pointer-events:none;user-select:none}
 #auth{width:min(440px,92vw)}
 #auth .dlg-body,#account .dlg-body{padding-top:16px}
@@ -886,7 +888,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
     </ul>
     <h4>Editor</h4>
     <ul>
-      <li>Turn on <b>Editor</b> (below the field, next to Play), then drag players (snaps to half yards; hold <kbd>Shift</kbd> for tenths, or focus a player and use the arrow keys). Edit labels, roles and all metadata in the Edit tab; Undo and Redo there (or <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> when not typing) step through your changes. A live check flags illegal alignments.</li>
+      <li>Turn on <b>Editor</b> (below the field, next to Play), then drag players (snaps to half yards; hold <kbd>Shift</kbd> for tenths, or focus a player and use the arrow keys). Edit labels, roles and all metadata in the Edit tab; <b>Undo</b> and <b>Redo</b> next to the formation title above the field (also at the bottom of the Edit tab, or <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd> when not typing) step through your changes. A live check flags illegal alignments.</li>
       <li><b>Save as new formation</b> stores a copy in this browser. <b>Export JSON</b> / <b>Import JSON</b> move formations between machines; import only adds custom formations and never overwrites built-ins. <b>Reset to defaults</b> removes all custom formations. Every stored change (saving, updating, deleting or importing formations; saving, copying, editing or deleting plays) can be reversed with <b>Undo change</b> / <b>Redo</b> in the Data menu and in the Playbook, or with <kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Y</kbd>, which outside Draw and the editors always act on the last thing you changed: a play, the field view or the stored library.</li>
     </ul>
     <h4>Export</h4>
@@ -3807,7 +3809,7 @@ function renderSlots(){
   };
   if (state.mode === 'single'){
     f = current();
-    html = '<span class="title-now">' + esc(f.name) + '</span><span class="badge ' + f.side + '">' + sideLabel(f) + '</span><span class="badge mono">' + esc(f.personnelCode) + '</span>' + (state.editor ? '<span class="badge warn">editing a copy</span>' : '');
+    html = '<span class="title-now">' + esc(f.name) + '</span><span class="badge ' + f.side + '">' + sideLabel(f) + '</span><span class="badge mono">' + esc(f.personnelCode) + '</span>' + (state.editor ? '<span class="badge warn">editing a copy</span><span class="seg ed-hist" role="group" aria-label="Editor history"><button data-edundo="1"' + (edHistory.length ? '' : ' disabled') + ' title="Undo the last change to this draft (Ctrl+Z outside a text field)">Undo</button><button data-edredo="1"' + (edRedo.length ? '' : ' disabled') + ' title="Redo (Ctrl+Y)">Redo</button></span>' : '');
     play =
       (activePlay(f) ? '<button class="slot-chip" aria-pressed="true" data-clearplay="1" title="Remove the play arrows"><b>PLAY</b><span class="nm">' + esc(activePlay(f).n) + '</span><span>&times;</span></button>' + (state.wpEdit ? '<button class="slot-chip" aria-pressed="true" data-wpdone="1" title="Drag a point to move it, Shift+click removes it, double-click adds one after it, Alt+click changes run / block / motion, Ctrl+click removes the whole arrow, click a player without an arrow to give him one"><b>WAYPOINTS</b><span class="nm">drag, Shift+click, double-click, Alt+click, Ctrl+click, click a free player</span><span>Done</span></button><button class="btn sm" data-wpundo="1" title="Undo the last waypoint change (Ctrl+Z)">Undo</button><button class="btn sm" data-wpredo="1" title="Redo the change you undid (Ctrl+Y or Ctrl+Shift+Z)">Redo</button>' : '') : '<button class="slot-chip" data-openplays="1" title="Open the playbook and put a play on the field"><b>PLAY</b><span class="nm">Choose a play</span></button>') + '<button class="btn sm primary" data-rundraw="1" title="Animate players along the strokes you started on them (shortcut: Shift+R)">Run drawing</button><button class="btn sm" data-savedraw="1" title="Save the strokes started on players as a play in the Custom section of the playbook">Save as play</button>' +
       (state.editor ? '' : '<button class="btn sm primary" data-runplay="1" title="Animate the players along the arrows (shortcut: R)"' + (activePlay(f) ? '' : ' disabled') + '>Run play</button><button class="btn sm" data-pauseplay="1" title="Pause or resume the animation (shortcut: Space)" disabled>Pause</button><button class="btn sm" data-resetplay="1" title="Return the players to their alignment">Reset</button><div class="seg" data-speedseg="1" role="group" aria-label="Animation speed">' + [0.5, 1, 2].map(function(v){ return '<button data-speed="' + v + '" aria-pressed="' + (v === (state.playSpeed || 1)) + '">' + v + '&times;</button>'; }).join('') + '</div>');
@@ -4684,6 +4686,8 @@ function init(){
   var onSlotsClick = function(e){
     var b = e.target.closest('button'); if (!b) return;
     if (b.dataset.clearplay){ state.play = null; state.wpEdit = false; render(false); return; }
+    if (b.dataset.edundo){ edUndo(); return; }
+    if (b.dataset.edredo){ edRedoStep(); return; }
     if (b.dataset.openplays){ openPlays(); return; }
     if (b.dataset.wpdone){ state.wpEdit = false; render(false); return; }
     if (b.dataset.wpundo){ wpUndo(); return; }
