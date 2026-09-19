@@ -293,6 +293,16 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 #btnInstall[hidden]{display:none}
 #btnAccount[hidden]{display:none}
+#btnScope[hidden]{display:none}
+.acct-team{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.acct-team h4{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.acct-team ul{list-style:none;margin:0 0 10px;padding:0}
+.acct-team li{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.acct-team li .who{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-team li .role{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.acct-team .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.acct-team input{flex:1;min-width:160px;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg-3);color:var(--text)}
+.acct-team .muted{font-size:12px}
 #btnTrial[hidden]{display:none}
 #btnTrial{border-color:var(--c-red)}
 #authPlans[hidden]{display:none}
@@ -683,7 +693,8 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
       <span>The Playbook <em>Caller</em></span>
     </div>
     <div class="spacer"></div>
-    <button class="btn" id="btnTrial" hidden title="Your free trial: choose a plan to keep saving after it ends">Trial</button>
+    <button class="btn" id="btnTrial" hidden title="Choose a plan to keep saving after your free trial">Choose a plan</button>
+    <button class="btn" id="btnScope" hidden title="Where new formations and plays are saved: click to switch">Saving to: Team</button>
     <button class="btn" id="btnAccount" hidden title="Your account and sync">Account</button>
     <button class="btn" id="btnInstall" hidden title="Install The Playbook Caller on this device">Install app</button>
     <button class="btn" id="btnTheme" title="Toggle light / dark theme">Light theme</button>
@@ -892,6 +903,7 @@ dialog::backdrop{background:rgba(3,12,54,.72)}
     <p class="muted" id="acctSync"></p>
     <p class="auth-sub">Your custom formations and plays are saved to your account and follow you to any device you sign in on. This browser keeps a working copy, so the board also works offline; changes sync when you are back online.</p>
     <div class="acct-row"><button class="btn sm primary" id="acctPlanBtn">Choose a plan</button><button class="btn sm" id="acctSyncNow">Sync now</button><button class="btn sm" id="acctSignOut">Sign out</button></div>
+    <div class="acct-team" id="acctTeam" hidden></div>
   </div>
 </dialog>
 
@@ -3276,6 +3288,7 @@ function sanitizeFormation(r){
   if (special){ out.unit = 'special'; out.kick = (r.kick === 'free' || r.kick === 'dynamic') ? r.kick : 'scrimmage'; }
   if (r.versus) out.versus = String(r.versus).slice(0, 60);
   if (r.note) out.note = String(r.note).slice(0, 400);
+  if (r.team) out.team = true;   // lives in the team library, not this coach's own
   return out;
 }
 function rebuild(){
@@ -3743,7 +3756,7 @@ function renderRail(){
     groups[k].forEach(function(f){
       var tags = slotTags(f.id).map(function(t){ return '<span class="tag slot">' + t + '</span>'; }).join('');
       html += '<button class="item ' + f.side + (f.id === fid ? ' sel' : '') + '" role="option" aria-selected="' + (f.id === fid) + '" data-id="' + esc(f.id) + '">' +
-        '<span class="nm">' + esc(f.name) + '</span>' + tags + (f.custom ? '<span class="tag">custom</span>' : '') + '<span class="code">' + esc(f.personnelCode) + '</span></button>';
+        '<span class="nm">' + esc(f.name) + '</span>' + tags + (f.custom ? '<span class="tag">' + (f.team ? 'team' : 'custom') + '</span>' : '') + '<span class="code">' + esc(f.personnelCode) + '</span></button>';
     });
     html += '</details>';
   });
@@ -4325,7 +4338,7 @@ function allPlays(){ return PLAYS.concat(customPlays); }
 function sanitizePlay(r){
   if (!r || typeof r !== 'object' || !Array.isArray(r.a) || !r.a.length || !r.f) return null;
   return { id: String(r.id || 'cp-' + Date.now().toString(36)), n: String(r.n || 'Custom play').slice(0, 60), k:'Custom', f: String(r.f), d: String(r.d || '').slice(0, 300), v: String(r.v || ''),
-    a: r.a.map(String).filter(function(s){ return /^\d+:[rbm]:[-\d.,;]+$/.test(s); }), c: String(r.c || ''), h: +r.h || 0.4, custom:true };
+    a: r.a.map(String).filter(function(s){ return /^\d+:[rbm]:[-\d.,;]+$/.test(s); }), c: String(r.c || ''), h: +r.h || 0.4, custom:true, team: !!r.team };
 }
 function loadCustomPlays(){ var raw = store.get(KEY_PLAYS, []); customPlays = (Array.isArray(raw) ? raw : []).map(sanitizePlay).filter(Boolean); }
 function saveDrawingAsPlay(){
@@ -4590,7 +4603,7 @@ function renderPlays(){
   $('#pbCount').textContent = rows.length + ' of ' + allPlays().length + ' plays';
   $('#pbBody').innerHTML = '<div class="cs-grid">' + rows.map(function(p){
     var f = INDEX[p.f]; if (!f) return ''; if (p.id === editPlayId) return playForm(p);
-    return '<article class="cs-card' + (p.id === state.play ? ' hit' : '') + '"><span class="eyebrow"><i class="dot ' + f.side + '" style="display:inline-block;margin-right:6px"></i>' + esc(p.k) + ' / ' + esc(f.name) + '</span><h4>' + esc(p.n) + '</h4><p>' + esc(p.d) + '</p><p class="muted">Best against: ' + esc(p.v) + '</p><div class="forms"><button class="btn sm primary" data-play="' + esc(p.id) + '">Show on field</button>' + (p.custom ? '<button class="btn sm" data-editplay="' + esc(p.id) + '">Edit</button><button class="btn sm danger" data-delplay="' + esc(p.id) + '">Delete</button>' : '<button class="btn sm" data-copyplay="' + esc(p.id) + '" title="Built-in plays are never changed: this makes an editable copy in the Custom section">Edit a copy</button>') + '</div></article>';
+    return '<article class="cs-card' + (p.id === state.play ? ' hit' : '') + '"><span class="eyebrow"><i class="dot ' + f.side + '" style="display:inline-block;margin-right:6px"></i>' + esc(p.team ? 'Team' : p.k) + ' / ' + esc(f.name) + '</span><h4>' + esc(p.n) + '</h4><p>' + esc(p.d) + '</p><p class="muted">Best against: ' + esc(p.v) + '</p><div class="forms"><button class="btn sm primary" data-play="' + esc(p.id) + '">Show on field</button>' + (p.custom ? '<button class="btn sm" data-editplay="' + esc(p.id) + '">Edit</button><button class="btn sm danger" data-delplay="' + esc(p.id) + '">Delete</button>' : '<button class="btn sm" data-copyplay="' + esc(p.id) + '" title="Built-in plays are never changed: this makes an editable copy in the Custom section">Edit a copy</button>') + '</div></article>';
   }).join('') + '</div>';
 }
 function openPlays(){ var d = $('#plays'); editPlayId = null; renderPlays(); if (d.showModal){ if (!d.open) d.showModal(); } else d.setAttribute('open', ''); }
@@ -4890,15 +4903,26 @@ function init(){
   var app = $('#app'), dlg = $('#auth'), acct = $('#account'), form = $('#authForm'), msgEl = $('#authMsg'), submit = $('#authSubmit');
   var session = null, gated = false, syncing = false, busy = false, pushTimer = 0, lastPull = 0, recoveryPending = false, view = 'signin';
   var KEY_ENT = 'formationsBoard.entitlement.v1', ent = store.get('formationsBoard.entitlement.v1', null), plansCache = null, plansInterval = 'year', plansDismissable = false;
+  var KEY_TEAM = 'formationsBoard.team.v1', team = store.get('formationsBoard.team.v1', null), KEY_TSYNC = 'formationsBoard.teamsync.v1', teamMeta = store.get('formationsBoard.teamsync.v1', null) || { dirty: 0, lastSync: 0 };
+  var KEY_SCOPE = 'formationsBoard.saveScope', saveScope = store.get('formationsBoard.saveScope', 'mine'), knownIds = {};
+  function saveTeamMeta(){ rawSet(KEY_TSYNC, teamMeta); }
+  function onTeam(){ return !!(team && team.id); }
+  function rememberIds(){ knownIds = {}; custom.forEach(function(f){ knownIds[f.id] = 1; }); customPlays.forEach(function(p){ knownIds[p.id] = 1; }); }
   var syncMeta = store.get(KEY_SYNC, null) || { owner: null, dirty: 0, lastSync: 0 };
   var rawSet = store.set, rawDel = store.del;
   function saveMeta(){ rawSet(KEY_SYNC, syncMeta); }
 
   /* ---- local writes to the library mark the account dirty and schedule a push ---- */
-  store.set = function(k, v){ var ok = rawSet(k, v); if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS)) markDirty(); return ok; };
+  store.set = function(k, v){
+    if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS) && Array.isArray(v)){
+      var toTeam = saveScope === 'team' && onTeam();
+      v.forEach(function(it){ if (it && it.id && !knownIds[it.id]){ it.team = toTeam; knownIds[it.id] = 1; } });
+    }
+    var ok = rawSet(k, v); if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS)) markDirty(); return ok;
+  };
   store.del = function(k){ rawDel(k); if (!syncing && (k === KEY_CUSTOM || k === KEY_PLAYS)) markDirty(); };
-  function markDirty(){ syncMeta.dirty = Date.now(); saveMeta(); renderAccount(); schedulePush(); }
-  function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(function(){ push().catch(function(){}); }, 1500); }
+  function markDirty(){ syncMeta.dirty = Date.now(); saveMeta(); if (onTeam()){ teamMeta.dirty = Date.now(); saveTeamMeta(); } renderAccount(); schedulePush(); }
+  function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(function(){ push().catch(function(){}); pushTeam().catch(function(){}); }, 1500); }
 
   /* ---- HTTP ---- */
   function api(path, opts){
@@ -4951,27 +4975,117 @@ function init(){
     if (!session || !session.user.id || !navigator.onLine) return Promise.resolve(false);
     var stamp = Date.now();
     return authed('/rest/v1/user_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: { user_id: session.user.id, custom_formations: custom, custom_plays: customPlays, updated_at: new Date(stamp).toISOString() } })
+      body: { user_id: session.user.id, custom_formations: custom.filter(function(f){ return !f.team; }), custom_plays: customPlays.filter(function(p){ return !p.team; }), updated_at: new Date(stamp).toISOString() } })
       .then(function(){ if (syncMeta.dirty && syncMeta.dirty <= stamp) syncMeta.dirty = 0; syncMeta.lastSync = stamp; syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return true; },
             function(err){ if (err.status === 403 || err.status === 401){ fetchEntitlement().then(function(e){ if (e && !e.active){ toast('Your plan has ended: changes stay on this device until you choose a plan.'); renderAccount(); } }).catch(function(){}); } throw err; });
   }
-  function applyRemote(row){
+  /* Replace the coach's own items (team items stay untouched, or the reverse). */
+  function applyRemote(row, forTeam){
     syncing = true;
     try {
-      custom = (Array.isArray(row.custom_formations) ? row.custom_formations : []).map(sanitizeFormation).filter(function(f){ return f && f.id && !DEFAULT_IDS[f.id]; });
-      customPlays = (Array.isArray(row.custom_plays) ? row.custom_plays : []).map(sanitizePlay).filter(Boolean);
-      saveCustom(); rawSet(KEY_PLAYS, customPlays);
+      var rf = (Array.isArray(row.custom_formations) ? row.custom_formations : []).map(sanitizeFormation).filter(function(f){ return f && f.id && !DEFAULT_IDS[f.id]; });
+      var rp = (Array.isArray(row.custom_plays) ? row.custom_plays : []).map(sanitizePlay).filter(Boolean);
+      rf.forEach(function(f){ f.team = !!forTeam; }); rp.forEach(function(p){ p.team = !!forTeam; });
+      custom = custom.filter(function(f){ return !!f.team !== !!forTeam; }).concat(rf);
+      customPlays = customPlays.filter(function(p){ return !!p.team !== !!forTeam; }).concat(rp);
+      saveCustom(); rawSet(KEY_PLAYS, customPlays); rememberIds();
       rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false);
     } finally { syncing = false; }
   }
+  function rpc(name, args){ return authed('/rest/v1/rpc/' + name, { method: 'POST', body: args || {} }); }
+  function loadTeam(){
+    return rpc('my_team').then(function(t){ team = t || null; if (team) rawSet(KEY_TEAM, team); else rawDel(KEY_TEAM); renderScope(); renderTeam(); return team; }, function(){ return team; });
+  }
+  function acceptInvites(){ return rpc('accept_invites').then(function(r){ if (r && r.team) toast('You joined ' + r.team); }, function(){}); }
+  function pullTeam(){
+    if (!onTeam()) return Promise.resolve(null);
+    return authed('/rest/v1/team_data?select=custom_formations,custom_plays,updated_at&team_id=eq.' + encodeURIComponent(team.id), { headers: { 'Accept': 'application/json' } })
+      .then(function(rows){ return rows && rows[0] ? rows[0] : null; });
+  }
+  function pushTeam(){
+    if (!session || !session.user.id || !navigator.onLine || !onTeam()) return Promise.resolve(false);
+    var stamp = Date.now();
+    return authed('/rest/v1/team_data', { method: 'POST', headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: { team_id: team.id, custom_formations: custom.filter(function(f){ return f.team; }), custom_plays: customPlays.filter(function(p){ return p.team; }), updated_at: new Date(stamp).toISOString(), updated_by: session.user.id } })
+      .then(function(){ if (teamMeta.dirty && teamMeta.dirty <= stamp) teamMeta.dirty = 0; teamMeta.lastSync = stamp; saveTeamMeta(); renderAccount(); return true; });
+  }
+  /* Team library: newer side wins per blob, and anything a coach added that the team does not
+     have yet is kept and pushed, so two coaches saving at once do not erase each other. */
+  function reconcileTeam(){
+    if (!onTeam()) return Promise.resolve();
+    return pullTeam().then(function(row){
+      var mineT = custom.filter(function(f){ return f.team; }), mineP = customPlays.filter(function(p){ return p.team; });
+      if (!row){ return (mineT.length || mineP.length) ? pushTeam() : undefined; }
+      var remoteT = Date.parse(row.updated_at || '') || 0, localNewer = teamMeta.dirty && teamMeta.dirty > remoteT;
+      var rf = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp = Array.isArray(row.custom_plays) ? row.custom_plays : [], fid = {}, pid = {};
+      rf.forEach(function(f){ if (f && f.id) fid[f.id] = 1; }); rp.forEach(function(p){ if (p && p.id) pid[p.id] = 1; });
+      var extraF = mineT.filter(function(f){ return !fid[f.id]; }), extraP = mineP.filter(function(p){ return !pid[p.id]; });
+      if (localNewer){ row.custom_formations = mineT.concat(rf.filter(function(f){ return !mineT.some(function(m){ return m.id === f.id; }); })); row.custom_plays = mineP.concat(rp.filter(function(p){ return !mineP.some(function(m){ return m.id === p.id; }); })); }
+      else { row.custom_formations = rf.concat(extraF); row.custom_plays = rp.concat(extraP); }
+      applyRemote(row, true);
+      if (localNewer || extraF.length || extraP.length) return pushTeam();
+      teamMeta.dirty = 0; teamMeta.lastSync = Date.now(); saveTeamMeta(); renderAccount();
+    });
+  }
+  function teamAction(name, args, okMsg){
+    return rpc(name, args).then(function(t){ if (t !== undefined && name !== 'leave_team'){ team = t || null; if (team) rawSet(KEY_TEAM, team); else rawDel(KEY_TEAM); } if (okMsg) toast(okMsg); return loadTeam(); }, function(err){ toast(err.message || 'That did not work'); });
+  }
+  function inviteCoach(email){
+    return authed('/functions/v1/invite-coach', { method: 'POST', body: { email: email } }).then(function(r){
+      if (r && r.error){ toast(r.error); return; }
+      toast(r && r.emailed ? 'Invitation emailed to ' + email : 'Invite recorded: ' + email + ' joins the next time they sign in');
+      return loadTeam();
+    }, function(err){ toast(err.message || 'Invite failed'); });
+  }
+  function renderScope(){
+    var b = $('#btnScope'); b.hidden = !(session && onTeam());
+    if (!b.hidden) b.textContent = saveScope === 'team' ? 'Saving to: Team' : 'Saving to: My library';
+  }
+  function setScope(v){ saveScope = v === 'team' ? 'team' : 'mine'; rawSet(KEY_SCOPE, saveScope); renderScope(); renderTeam(); toast(saveScope === 'team' ? 'New formations and plays go to the team library' : 'New formations and plays stay in your own library'); }
+  $('#btnScope').addEventListener('click', function(){ setScope(saveScope === 'team' ? 'mine' : 'team'); });
+  function renderTeam(){
+    var host = $('#acctTeam'); if (!session){ host.hidden = true; return; }
+    host.hidden = false;
+    var planSeats = ent && ent.reason === 'subscription' && ent.plan && ent.plan !== 'personal';
+    if (!onTeam()){
+      host.innerHTML = '<h4>Team</h4>' + (planSeats
+        ? '<p class="muted">Your ' + esc(planLabel(ent.plan)) + ' plan includes a shared team library. Name your team to start inviting coaches.</p><div class="row"><input id="teamName" placeholder="Team name (e.g. Atlantis Football)" maxlength="60"><button class="btn sm primary" id="teamCreate" type="button">Create team</button></div>'
+        : '<p class="muted">A shared team library comes with the Team, Program and Unlimited plans. Coaches invited by a team owner join here automatically.</p>');
+      return;
+    }
+    var owner = team.role === 'owner', seats = team.seat_limit || 0, used = team.seats_used || (team.members || []).length;
+    var members = (team.members || []).map(function(m){
+      return '<li><span class="who">' + esc(m.name || m.email || 'Coach') + (m.name && m.email ? ' <span class="muted">' + esc(m.email) + '</span>' : '') + '</span><span class="role">' + esc(m.role) + '</span>' + (owner && m.role !== 'owner' ? '<button class="btn sm" type="button" data-remove="' + esc(m.user_id) + '">Remove</button>' : '') + '</li>';
+    }).join('');
+    var invites = (team.invites || []).map(function(i){ return '<li><span class="who">' + esc(i.email) + '</span><span class="role">invited</span>' + (owner ? '<button class="btn sm" type="button" data-revoke="' + esc(i.email) + '">Revoke</button>' : '') + '</li>'; }).join('');
+    host.innerHTML = '<h4>Team: ' + esc(team.name) + (owner ? ' <button class="btn sm" type="button" id="teamRename">Rename</button>' : '') + '</h4>' +
+      '<p class="muted">' + used + ' of ' + seats + ' seats used' + (seats ? '' : ' (the owner\u2019s team plan is not active)') + '</p>' +
+      '<ul>' + members + invites + '</ul>' +
+      (owner ? '<div class="row"><input id="teamInvite" type="email" placeholder="coach@school.edu"><button class="btn sm primary" id="teamInviteBtn" type="button"' + (used >= seats ? ' disabled title="No seats left"' : '') + '>Invite coach</button></div>' : '<div class="row"><button class="btn sm" type="button" id="teamLeave">Leave team</button></div>') +
+      '<div class="row"><span class="muted">New saves go to</span><div class="seg" role="group"><button type="button" data-scope="mine" aria-pressed="' + (saveScope !== 'team') + '">My library</button><button type="button" data-scope="team" aria-pressed="' + (saveScope === 'team') + '">Team library</button></div></div>';
+  }
+  $('#acctTeam').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'teamCreate'){ var nm = $('#teamName').value.trim(); if (!nm) return toast('Give the team a name'); teamAction('create_team', { p_name: nm }, 'Team created').then(function(){ setScope('team'); }); }
+    else if (b.id === 'teamRename'){ var n2 = window.prompt('Team name', team.name); if (n2 && n2.trim()) teamAction('rename_team', { p_name: n2.trim() }, 'Team renamed'); }
+    else if (b.id === 'teamInviteBtn'){ var em = $('#teamInvite').value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('Enter a valid email address'); b.disabled = true; inviteCoach(em).then(function(){ b.disabled = false; }); }
+    else if (b.dataset.revoke){ teamAction('revoke_invite', { p_email: b.dataset.revoke }, 'Invite revoked'); }
+    else if (b.dataset.remove){ if (window.confirm('Remove this coach from the team? Their own library is untouched.')) teamAction('remove_member', { p_user: b.dataset.remove }, 'Coach removed'); }
+    else if (b.id === 'teamLeave'){ if (window.confirm('Leave the team? You keep your own library; the team library stays with the team.')) teamAction('leave_team', {}, 'You left the team').then(function(){ team = null; rawDel(KEY_TEAM); syncing = true; try { custom = custom.filter(function(f){ return !f.team; }); customPlays = customPlays.filter(function(p){ return !p.team; }); saveCustom(); rawSet(KEY_PLAYS, customPlays); rememberIds(); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; } setScope('mine'); renderTeam(); }); }
+    else if (b.dataset.scope){ setScope(b.dataset.scope); }
+  });
   /* Called after sign-in and when the app comes back to the foreground. Same account as the last
      sync on this device: newer side wins. A different (or no) account: the account's data is kept
      and anything this browser had that the account lacks is added to it, so nothing is lost. */
   function reconcile(){
     if (!session) return Promise.resolve();
     lastPull = Date.now();
-    return fillUser().then(pull).then(function(row){
-      var localHas = custom.length || customPlays.length, sameOwner = syncMeta.owner === session.user.id;
+    return fillUser().then(acceptInvites).then(loadTeam).then(reconcileOwn).then(reconcileTeam);
+  }
+  function reconcileOwn(){
+    return pull().then(function(row){
+      var mineF = custom.filter(function(f){ return !f.team; }), mineP = customPlays.filter(function(p){ return !p.team; });
+      var localHas = mineF.length || mineP.length, sameOwner = syncMeta.owner === session.user.id;
       if (!row){ syncMeta.owner = session.user.id; saveMeta(); renderAccount(); return localHas ? push() : undefined; }
       var remoteT = Date.parse(row.updated_at || '') || 0;
       if (sameOwner){
@@ -4981,8 +5095,8 @@ function init(){
       if (localHas){
         var rf = Array.isArray(row.custom_formations) ? row.custom_formations : [], rp = Array.isArray(row.custom_plays) ? row.custom_plays : [], fid = {}, pid = {};
         rf.forEach(function(f){ if (f && f.id) fid[f.id] = 1; }); rp.forEach(function(p){ if (p && p.id) pid[p.id] = 1; });
-        row.custom_formations = rf.concat(custom.filter(function(f){ return !fid[f.id]; }));
-        row.custom_plays = rp.concat(customPlays.filter(function(p){ return !pid[p.id]; }));
+        row.custom_formations = rf.concat(mineF.filter(function(f){ return !fid[f.id]; }));
+        row.custom_plays = rp.concat(mineP.filter(function(p){ return !pid[p.id]; }));
         applyRemote(row); syncMeta.owner = session.user.id; saveMeta(); return push();
       }
       applyRemote(row); syncMeta.dirty = 0; syncMeta.owner = session.user.id; syncMeta.lastSync = Date.now(); saveMeta(); renderAccount();
@@ -5011,6 +5125,7 @@ function init(){
     if (!ent) return 'Plan: not checked yet';
     if (ent.reason === 'trial') return 'Free trial: ' + daysLeft(ent.trial_ends_at) + ' day' + (daysLeft(ent.trial_ends_at) === 1 ? '' : 's') + ' left';
     if (ent.reason === 'subscription') return planLabel(ent.plan) + ' plan' + (ent.period_end ? ', renews ' + new Date(ent.period_end).toLocaleDateString() : '') + (ent.status === 'trialing' ? ' (trial)' : '');
+    if (ent.reason === 'team') return planLabel(ent.plan) + ' plan through your team';
     if (ent.reason === 'grace') return planLabel(ent.plan) + ' plan: payment failed, update your card to keep access';
     if (ent.reason === 'trial_ended') return 'Your free trial has ended';
     if (ent.reason === 'lapsed') return 'Your plan has ended';
@@ -5034,7 +5149,7 @@ function init(){
       host.innerHTML = '<p class="auth-sub">' + esc(entText()) + '. Pick a plan to keep saving formations and plays' + (ent && ent.reason === 'trial' ? ' after the trial' : '') + '.</p>' +
         '<div class="plan-toggle"><div class="seg" role="group" aria-label="Billing period"><button type="button" data-interval="month" aria-pressed="' + (plansInterval === 'month') + '">Monthly</button><button type="button" data-interval="year" aria-pressed="' + (plansInterval === 'year') + '">Yearly \u00b7 2 months free</button></div></div>' +
         '<div class="plan-grid">' + cards + '</div>' +
-        '<p class="plan-note">Team plans share one library across the staff (coming in the next release; buying now reserves the seats). Secure checkout by Stripe; cancel any time from Manage billing.</p>';
+        '<p class="plan-note">Team plans share one library across the whole staff. Secure checkout by Stripe; cancel any time from Manage billing. Have a promotion code? Enter it on the checkout page.</p>';
     }, function(err){ host.innerHTML = '<p class="auth-sub">' + esc(entText()) + '.</p><p class="auth-msg err">Could not load the plans: ' + esc(err.message) + '</p>'; });
   }
   function startCheckout(plan){
@@ -5076,11 +5191,19 @@ function init(){
     };
     tick(); return true;
   }
+  /* "Choose a plan" sits next to the user's name until a subscription exists. */
   function renderTrial(){
     var b = $('#btnTrial');
-    if (!session || !ent || ent.reason !== 'trial'){ b.hidden = true; return; }
-    var d = daysLeft(ent.trial_ends_at);
-    b.hidden = d > 3; b.textContent = 'Trial: ' + d + ' day' + (d === 1 ? '' : 's') + ' left';
+    var noPlan = session && ent && (ent.reason === 'trial' || ent.reason === 'trial_ended' || ent.reason === 'unchecked');
+    b.hidden = !noPlan; if (!noPlan) return;
+    var d = ent.reason === 'trial' ? daysLeft(ent.trial_ends_at) : 0;
+    b.textContent = ent.reason === 'trial' ? 'Choose a plan \u00b7 ' + d + ' day' + (d === 1 ? '' : 's') + ' left' : 'Choose a plan';
+  }
+  /* During the trial the plan picker pops up once per visit, dismissable, until a plan is chosen. */
+  var plansPrompted = false;
+  function promptPlansIfTrial(){
+    if (plansPrompted || !ent || ent.reason !== 'trial' || gated) return;
+    plansPrompted = true; openPlans(true);
   }
   $('#btnTrial').addEventListener('click', function(){ openPlans(true); });
 
@@ -5089,7 +5212,7 @@ function init(){
     signin: { title: 'Sign in', sub: 'The Playbook Caller is for registered users. Sign in, or create an account, to open the board.', fields: ['email', 'password'], submit: 'Sign in', tabs: true, forgot: true, pw: 'current-password', pwLabel: 'Password' },
     signup: { title: 'Create account', sub: 'Your custom formations and plays will be saved to your account and follow you to any device.', fields: ['name', 'email', 'password'], submit: 'Create account', tabs: true, pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
     forgot: { title: 'Reset password', sub: 'Enter your email and we will send you a link to choose a new password.', fields: ['email'], submit: 'Send reset link', back: true },
-    reset:  { title: 'New password', sub: 'Choose a new password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'New password (at least 8 characters)' },
+    reset:  { title: 'Choose a password', sub: 'Choose a password to finish signing in.', fields: ['password', 'password2'], submit: 'Save password', pw: 'new-password', pwLabel: 'Password (at least 8 characters)' },
     check:  { title: 'Check your email', sub: '', fields: [], submit: null, back: true },
     plans:  { title: 'Choose a plan', sub: '', fields: [], submit: null, plans: true }
   };
@@ -5151,7 +5274,8 @@ function init(){
     return checkEntitlement().then(function(e){
       if (!e.active){ renderAccount(); openPlans(false); return; }
       closeGate(); renderAccount();
-      return reconcile().then(function(){ toast('Signed in as ' + (session.user.name || session.user.email)); }, function(err){ if (session) toast(err.offline ? 'Signed in. Sync will run when you are back online.' : 'Signed in, but sync failed: ' + err.message); });
+      return reconcile().then(function(){ toast('Signed in as ' + (session.user.name || session.user.email)); }, function(err){ if (session) toast(err.offline ? 'Signed in. Sync will run when you are back online.' : 'Signed in, but sync failed: ' + err.message); })
+        .then(promptPlansIfTrial);
     });
   }
 
@@ -5170,7 +5294,8 @@ function init(){
     $('#acctPlan').textContent = entText();
     var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
     $('#acctPlanBtn').textContent = hasSub ? 'Manage billing' : 'Choose a plan';
-    renderTrial();
+    $('#acctPlanBtn').hidden = !!(ent && ent.reason === 'team');
+    renderTrial(); renderScope(); renderTeam();
   }
   $('#acctPlanBtn').addEventListener('click', function(){
     var hasSub = ent && (ent.reason === 'subscription' || ent.reason === 'grace' || ent.reason === 'lapsed');
@@ -5188,6 +5313,7 @@ function init(){
   });
   function signOutLocal(){
     session = null; rawDel(KEY_SESSION); ent = null; rawDel(KEY_ENT); renderTrial();
+    team = null; rawDel(KEY_TEAM); teamMeta = { dirty: 0, lastSync: 0 }; saveTeamMeta(); knownIds = {}; renderScope(); renderTeam();
     syncing = true;
     try { custom = []; customPlays = []; rawDel(KEY_CUSTOM); rawDel(KEY_PLAYS); rebuild(); ensureValidState(); renderRail(); renderCustomPlays(); render(false); } finally { syncing = false; }
     syncMeta = { owner: null, dirty: 0, lastSync: 0 }; saveMeta(); renderAccount();
@@ -5209,10 +5335,11 @@ function init(){
     var p = {}; h.split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) p[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); }); return p;
   }
   function clearHash(){ try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; } }
+  rememberIds();
   var stored = store.get(KEY_SESSION, null); if (stored && stored.access_token) session = stored;
   var startMsg = '', startKind = 'info', hp = readHash();
   if (hp){
-    if (hp.access_token){ setSession({ access_token: hp.access_token, refresh_token: hp.refresh_token, expires_in: hp.expires_in, user: null }); recoveryPending = hp.type === 'recovery'; if (!recoveryPending) clearHash(); }
+    if (hp.access_token){ setSession({ access_token: hp.access_token, refresh_token: hp.refresh_token, expires_in: hp.expires_in, user: null }); recoveryPending = hp.type === 'recovery' || hp.type === 'invite'; if (!recoveryPending) clearHash(); }
     else if (hp.error_description){ startMsg = hp.error_description; startKind = 'err'; clearHash(); }
   }
   window.addEventListener('online', function(){ if (session && syncMeta.dirty) schedulePush(); renderAccount(); });
@@ -5226,7 +5353,7 @@ function init(){
     if (!afterCheckoutReturn()){
       checkEntitlement().then(function(e){
         if (!e.active){ renderAccount(); openPlans(false); return; }
-        closeGate(); renderAccount(); return reconcile();
+        closeGate(); renderAccount(); return reconcile().then(promptPlansIfTrial, promptPlansIfTrial);
       }).catch(function(){});
     }
   }
