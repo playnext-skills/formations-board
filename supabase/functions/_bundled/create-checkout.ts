@@ -89,7 +89,10 @@ Deno.serve(async (req) => {
       cancel_url: `${APP_URL}?checkout=cancel`,
       subscription_data: { metadata: { supabase_user_id: user.id, plan: price.plan, interval: price.interval } },
       metadata: { supabase_user_id: user.id, plan: price.plan, interval: price.interval },
-    });
+      // Plain Stripe billing, not Stripe Managed Payments (merchant of record, +3.5%): the
+      // account applies Managed Payments by default and then refuses products with no tax code.
+      managed_payments: { enabled: false },
+    } as unknown as Stripe.Checkout.SessionCreateParams);
     return json({ url: session.url });
   } catch (e) {
     if (e instanceof Response) return e;
