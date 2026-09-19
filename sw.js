@@ -4,7 +4,7 @@
    Hosting facts this file is written against: Cloudflare Pages redirects /index.html to /
    (308), so the shell is cached under './' only, and a redirected or error response is
    never stored for a navigation. */
-var VERSION = 'formations-board-v17';
+var VERSION = 'formations-board-v18';
 var SHELL = [
   './',
   './manifest.webmanifest',
@@ -52,7 +52,8 @@ self.addEventListener('fetch', function(e){
       Promise.race([network, timer]).then(function(res){
         // A redirect (e.g. /index.html -> /) is handed back untouched; the browser follows it.
         if (res.type === 'opaqueredirect' || res.redirected) return res;
-        if (res.ok) return res;
+        // 2xx and 4xx (including the branded 404 page) are real answers; only a 5xx falls back to the shell.
+        if (res.status < 500) return res;
         return caches.match('./').then(function(hit){ return hit || res; });
       }).catch(function(){
         network.catch(function(){});

@@ -4,20 +4,201 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Not found</title>
+<meta name="theme-color" content="#06175c">
+<title>Out of bounds · The Playbook Caller</title>
+<link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap">
 <style>
-  :root{color-scheme:light dark}
-  body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#06175c;color:#fff;padding:16px}
-  main{max-width:420px;text-align:center}
-  h1{font-size:22px;margin:0 0 8px}
-  a{display:inline-block;margin-top:14px;padding:10px 18px;background:#ff1230;color:#fff;text-decoration:none;border-radius:6px;font-weight:700}
+  /* Same tokens as the app (index.html): navy blues, brand red, field green, condensed display type. */
+  :root{
+    --c-blue:#0b2fa3; --c-blue-deep:#06175c; --c-blue-bright:#2f6bff; --c-red:#ff1230; --c-red-deep:#c8001d;
+    --field:#2d6a3e; --field-deep:#245734; --flag:#ffd447;
+    --text:#ffffff; --muted:#c9d4ff; --line:rgba(255,255,255,.14);
+    --display:"Barlow Condensed","Oswald","Roboto Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+    --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --slant:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    min-height:100vh;display:flex;flex-direction:column;font:16px/1.55 var(--sans);color:var(--text);
+    background:
+      radial-gradient(900px 520px at 85% 20%, rgba(47,107,255,.28), transparent 60%),
+      repeating-linear-gradient(180deg, transparent 0 63px, rgba(255,255,255,.035) 63px 64px),
+      linear-gradient(160deg, var(--c-blue-deep) 0%, #081f78 55%, var(--c-blue) 100%);
+  }
+  a{color:inherit}
+
+  /* ---------- top bar: identical to the app's ---------- */
+  .topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:3px solid var(--c-red);
+    background:linear-gradient(100deg,var(--c-blue-deep) 0%,var(--c-blue) 70%,var(--c-blue-bright) 100%)}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 23px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+  .brand em{font-style:normal;color:var(--c-red)}
+  .brand svg{flex:none}
+
+  /* ---------- body ---------- */
+  main{flex:1;width:100%;max-width:1120px;margin:0 auto;padding:clamp(28px,6vw,72px) 16px;display:grid;gap:clamp(28px,5vw,56px);align-items:center;grid-template-columns:1fr}
+  @media (min-width:880px){ main{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)} }
+
+  .chip{display:inline-block;background:var(--c-red);color:#fff;font:800 14px/1 var(--display);letter-spacing:.14em;text-transform:uppercase;padding:8px 20px;clip-path:var(--slant)}
+  h1{margin:18px 0 14px;font:800 clamp(44px,8.5vw,84px)/.92 var(--display);letter-spacing:.01em;text-transform:uppercase}
+  h1 em{font-style:normal;color:var(--c-red)}
+  .bar{width:120px;height:6px;background:var(--c-red);clip-path:var(--slant);margin:0 0 18px}
+  p.lead{margin:0 0 18px;max-width:34em;color:var(--muted);font-size:17px}
+  .called{display:none;align-items:center;gap:10px;margin:0 0 26px;max-width:100%;padding:8px 12px;border:1px solid var(--line);border-left:3px solid var(--c-red);background:rgba(255,255,255,.06);font-size:13px}
+  .called.on{display:inline-flex}
+  .called b{font:700 12px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .called code{font-family:var(--mono);color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(60vw,440px)}
+
+  .actions{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 28px;border:0;cursor:pointer;text-decoration:none;
+    font:800 16px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;clip-path:var(--slant);transition:transform .15s ease, filter .15s ease}
+  .btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  .btn:focus-visible{outline:3px solid var(--flag);outline-offset:3px}
+  .btn.primary{background:var(--c-red);color:#fff}
+  .btn.ghost{background:rgba(255,255,255,.1);color:#fff}
+  .btn.ghost[hidden]{display:none}
+
+  /* ---------- the field card ---------- */
+  .card{position:relative;border:1px solid var(--line);background:rgba(3,12,54,.45);box-shadow:0 24px 60px rgba(0,0,0,.45);padding:14px}
+  .card .tag{position:absolute;top:-13px;left:18px;z-index:1}
+  .card svg{display:block;width:100%;height:auto}
+  .card figcaption{display:flex;justify-content:space-between;gap:12px;margin-top:10px;font:700 12px/1.2 var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .card figcaption span:last-child{color:var(--flag)}
+
+  footer{padding:18px 16px 24px;text-align:center;font-size:12px;color:var(--muted)}
+
+  /* ---------- the play: route draws, receiver runs it, flag drops ---------- */
+  .route{stroke-dasharray:420;stroke-dashoffset:420;animation:draw 1.3s .35s cubic-bezier(.45,0,.2,1) forwards}
+  .head{opacity:0;animation:fade .2s 1.6s forwards}
+  .runner{offset-path:path("M362 318 L362 236 Q362 206 392 190 L452 158");offset-distance:0%;animation:run 1.3s .35s cubic-bezier(.45,0,.2,1) forwards}
+  .flag{transform-box:fill-box;transform-origin:50% 100%;opacity:0;animation:drop .55s 1.75s cubic-bezier(.3,1.4,.5,1) forwards}
+  .oob{opacity:0;animation:fade .4s 2.1s forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @keyframes run{to{offset-distance:84%}}
+  @keyframes fade{to{opacity:1}}
+  @keyframes drop{0%{opacity:0;transform:translate(-20px,-90px) rotate(-40deg)}100%{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .route,.head,.runner,.flag,.oob{animation:none;opacity:1;stroke-dashoffset:0}
+    .runner{offset-distance:84%}
+  }
+  @supports not (offset-path:path("M0 0")){ .runner{display:none} }
 </style>
 </head>
 <body>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="The Playbook Caller home">
+    <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4.5" fill="#0b2fa3" stroke="rgba(255,255,255,.35)" stroke-width=".6"/><path d="M3 7.5h16M3 12h16" stroke="#fff" stroke-width=".8" opacity=".35"/><path d="M3 17.6h16v-2.2H4.4z" fill="#ff1230"/><circle cx="7.4" cy="12.6" r="2.3" fill="none" stroke="#fff" stroke-width="1.5"/><path d="M9.6 11.4c2.6-.3 4.2-1.8 5.1-4.6" fill="none" stroke="#ff1230" stroke-width="1.6" stroke-linecap="round"/><path d="M15.6 4.6l.9 3.2-3.1-.7z" fill="#ff1230"/><path d="M15.2 11.4l2.4 2.4M17.6 11.4l-2.4 2.4" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>
+    <span>The Playbook <em>Caller</em></span>
+  </a>
+</header>
+
 <main>
-  <h1>That page does not exist</h1>
-  <p>The Playbook Caller lives at the address below.</p>
-  <a href="/">Open The Playbook Caller</a>
+  <section aria-labelledby="t">
+    <span class="chip">404 · Out of bounds</span>
+    <h1 id="t">That play isn&#8217;t in the <em>book.</em></h1>
+    <div class="bar" aria-hidden="true"></div>
+    <p class="lead">The page you called for doesn&#8217;t exist or has moved. Head back to the board and call another one.</p>
+    <p class="called" id="called"><b>You called</b><code id="path"></code></p>
+    <div class="actions">
+      <a class="btn primary" href="/">Back to the board</a>
+      <button class="btn ghost" type="button" id="back" hidden>Go back</button>
+    </div>
+  </section>
+
+  <figure class="card" style="margin:0">
+    <span class="chip tag">Play 404</span>
+    <svg viewBox="0 0 480 400" role="img" aria-labelledby="figt">
+      <title id="figt">Diagram: a receiver runs his route past the sideline and a penalty flag lands where he went out of bounds.</title>
+      <defs>
+        <pattern id="ez" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+          <rect width="18" height="18" fill="#245734"/><rect width="9" height="18" fill="#285e39"/>
+        </pattern>
+      </defs>
+
+      <!-- out-of-bounds margins -->
+      <rect x="0" y="0" width="480" height="400" fill="#07154f"/>
+      <!-- field -->
+      <rect x="28" y="0" width="360" height="400" fill="#2d6a3e"/>
+      <!-- end zone with painted 404 -->
+      <rect x="28" y="0" width="360" height="92" fill="url(#ez)"/>
+      <text x="208" y="72" text-anchor="middle" font-family="Barlow Condensed, Oswald, Arial Narrow, sans-serif" font-weight="800" font-size="78" letter-spacing="10" fill="#ffffff" fill-opacity=".92">404</text>
+      <!-- goal line + yard lines -->
+      <rect x="28" y="92" width="360" height="4" fill="#fff"/>
+      <g stroke="#fff" stroke-opacity=".55" stroke-width="2">
+        <line x1="28" y1="140" x2="388" y2="140"/><line x1="28" y1="186" x2="388" y2="186"/>
+        <line x1="28" y1="232" x2="388" y2="232"/><line x1="28" y1="278" x2="388" y2="278"/>
+        <line x1="28" y1="324" x2="388" y2="324"/><line x1="28" y1="370" x2="388" y2="370"/>
+      </g>
+      <!-- hash marks -->
+      <g stroke="#fff" stroke-opacity=".45" stroke-width="2">
+        <path d="M168 105v6M168 119v6M168 128v6M168 151v6M168 160v6M168 169v6M168 197v6M168 206v6M168 215v6M168 243v6M168 252v6M168 261v6M168 289v6M168 298v6M168 307v6M168 335v6M168 344v6M168 353v6M168 381v6M168 390v6"/>
+        <path d="M248 105v6M248 119v6M248 128v6M248 151v6M248 160v6M248 169v6M248 197v6M248 206v6M248 215v6M248 243v6M248 252v6M248 261v6M248 289v6M248 298v6M248 307v6M248 335v6M248 344v6M248 353v6M248 381v6M248 390v6"/>
+      </g>
+      <!-- yard numbers -->
+      <g font-family="Barlow Condensed, Oswald, Arial Narrow, sans-serif" font-weight="700" font-size="22" fill="#fff" fill-opacity=".38">
+        <text x="56" y="194">1 0</text><text x="56" y="286">2 0</text>
+        <text x="332" y="194">1 0</text><text x="332" y="286">2 0</text>
+      </g>
+      <!-- sidelines -->
+      <rect x="24" y="0" width="5" height="400" fill="#fff"/>
+      <rect x="387" y="0" width="5" height="400" fill="#fff"/>
+      <!-- line of scrimmage -->
+      <line x1="28" y1="302" x2="388" y2="302" stroke="#9fd3ff" stroke-width="2" stroke-dasharray="7 6" stroke-opacity=".85"/>
+
+      <!-- defense -->
+      <g stroke="#fff" stroke-width="3" stroke-linecap="round">
+        <path d="M185 281l10 10M195 281l-10 10"/><path d="M221 281l10 10M231 281l-10 10"/>
+        <path d="M160 244l10 10M170 244l-10 10"/><path d="M246 244l10 10M256 244l-10 10"/>
+        <path d="M357 242l10 10M367 242l-10 10"/><path d="M58 254l10 10M68 254l-10 10"/>
+        <path d="M205 178l10 10M215 178l-10 10"/>
+      </g>
+
+      <!-- offense -->
+      <g fill="#2d6a3e" stroke="#fff" stroke-width="3">
+        <circle cx="172" cy="316" r="8"/><circle cx="191" cy="316" r="8"/><circle cx="210" cy="316" r="8"/>
+        <circle cx="229" cy="316" r="8"/><circle cx="248" cy="316" r="8"/><circle cx="270" cy="318" r="8"/>
+        <circle cx="210" cy="342" r="8"/><circle cx="210" cy="368" r="8"/><circle cx="64" cy="318" r="8"/>
+      </g>
+
+      <!-- the route that goes out of bounds -->
+      <path class="route" d="M362 318 L362 236 Q362 206 392 190 L452 158" fill="none" stroke="#ff1230" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path class="head" d="M466 150 L446 150 L454 168 Z" fill="#ff1230" transform="rotate(-8 456 158)"/>
+      <circle cx="362" cy="318" r="8" fill="#2d6a3e" stroke="#fff" stroke-width="3" opacity=".35"/>
+      <circle class="runner" r="8" fill="#ff1230" stroke="#fff" stroke-width="3" cx="0" cy="0"/>
+
+      <!-- penalty flag where he stepped out -->
+      <g class="flag">
+        <path d="M396 214 q10 -6 20 -1 q-4 9 2 18 q-12 -4 -22 2 z" fill="#ffd447" stroke="#b8901a" stroke-width="1.5"/>
+        <circle cx="398" cy="232" r="3.5" fill="#ffd447" stroke="#b8901a" stroke-width="1.5"/>
+      </g>
+
+      <!-- sideline label -->
+      <text class="oob" x="0" y="0" transform="translate(462 330) rotate(-90)" font-family="Barlow Condensed, Oswald, Arial Narrow, sans-serif" font-weight="800" font-size="15" letter-spacing="3" fill="#ffd447">OUT OF BOUNDS</text>
+    </svg>
+    <figcaption><span>Route: go · breaks to the sideline</span><span>Flag on the play</span></figcaption>
+  </figure>
 </main>
+
+<footer>The Playbook Caller · theplaybookcaller.com</footer>
+
+<script>
+  (function(){
+    // Show which address was requested (text only, never parsed as HTML).
+    var p = location.pathname + location.search;
+    if (p && p !== '/'){ document.getElementById('path').textContent = p; document.getElementById('called').classList.add('on'); }
+    // "Go back" only when there is somewhere on this site to go back to.
+    var back = document.getElementById('back');
+    if (history.length > 1 && document.referrer && document.referrer.indexOf(location.origin) === 0){
+      back.hidden = false; back.addEventListener('click', function(){ history.back(); });
+    }
+  })();
+</script>
 </body>
 </html>
