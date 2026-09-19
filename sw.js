@@ -1,7 +1,7 @@
 /* The Playbook Caller service worker.
    Bump VERSION whenever index.html, the manifest or an icon changes: the old cache is
    dropped on activate and the page shows a "reload to update" toast. */
-var VERSION = 'formations-board-v10';
+var VERSION = 'formations-board-v11';
 var SHELL = [
   './',
   './index.html',

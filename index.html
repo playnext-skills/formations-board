@@ -4428,10 +4428,13 @@ function currentReceiver(f){
 function renderReceiverSel(){
   var sel = $('#recvSel'), f = state.mode === 'single' && !state.editor ? INDEX[state.sel] : null;
   if (!f){ sel.innerHTML = '<option value="">' + (state.editor ? 'Turn the editor off first' : 'Single view only') + '</option>'; sel.disabled = true; return; }
+  if (f.side !== 'offense' || isSpecial(f)){ sel.innerHTML = '<option value="">Offense formations only</option>'; sel.disabled = true; return; }
   var cur = currentReceiver(f), p = activePlay(f), locked = !!(p && !p.custom);
-  var opts = f.players.map(function(pl, i){
-    var r = ROLES[pl.role], where = pl.x < -0.5 ? 'left' : pl.x > 0.5 ? 'right' : 'middle';
-    return '<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + esc(pl.label) + ' &middot; ' + esc(r ? r.n : pl.role) + ' (' + where + ')</option>';
+  var opts = [];
+  f.players.forEach(function(pl, i){   // linemen are ineligible; the quarterback stays for keepers
+    var r = ROLES[pl.role]; if (r && r.g === 'OL' && i !== cur) return;
+    var where = pl.x < -0.5 ? 'left' : pl.x > 0.5 ? 'right' : 'middle';
+    opts.push('<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + esc(pl.label) + ' &middot; ' + esc(r ? r.n : pl.role) + ' (' + where + ')</option>');
   });
   sel.innerHTML = '<option value=""' + (cur < 0 ? ' selected' : '') + '>' + (locked ? 'Built-in play: Edit a copy to change' : 'Choose the player') + '</option>' + opts.join('');
   sel.disabled = locked;
