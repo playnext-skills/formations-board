@@ -2,7 +2,7 @@
 // public.subscriptions. Stripe is the source of truth; this table is a cache of it.
 // Deploy with JWT verification OFF (see supabase/config.toml).
 import Stripe from "npm:stripe@17";
-import { admin, stripe } from "../_shared/common.ts";
+import { admin, getStripe } from "../_shared/common.ts";
 
 const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
@@ -12,7 +12,7 @@ async function userIdForCustomer(customerId: string, sub?: Stripe.Subscription):
   if (fromMeta) return fromMeta;
   const { data } = await admin.from("profiles").select("user_id").eq("stripe_customer_id", customerId).maybeSingle();
   if (data?.user_id) return data.user_id;
-  const customer = await stripe.customers.retrieve(customerId);
+  const customer = await getStripe().customers.retrieve(customerId);
   return (customer as Stripe.Customer).metadata?.supabase_user_id ?? null;
 }
 
@@ -43,8 +43,10 @@ Deno.serve(async (req) => {
   const body = await req.text();
   let event: Stripe.Event;
   try {
-    event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET, undefined, cryptoProvider);
+    if (!WEBHOOK_SECRET) return new Response("Webhook not configured (STRIPE_WEBHOOK_SECRET missing)", { status: 503 });
+    event = await getStripe().webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET, undefined, cryptoProvider);
   } catch (e) {
+    if (e instanceof Response) return e;   // getStripe(): billing not configured
     console.error("Bad signature", (e as Error).message);
     return new Response("Bad signature", { status: 400 });
   }
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-        if (subId) await upsertSubscription(await stripe.subscriptions.retrieve(subId));
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
         break;
       }
       case "customer.subscription.created":
@@ -67,7 +69,7 @@ Deno.serve(async (req) => {
       case "invoice.paid": {
         const inv = event.data.object as Stripe.Invoice;
         const subId = typeof inv.subscription === "string" ? inv.subscription : inv.subscription?.id;
-        if (subId) await upsertSubscription(await stripe.subscriptions.retrieve(subId));
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
         break;
       }
       default:
@@ -75,6 +77,7 @@ Deno.serve(async (req) => {
     }
     return new Response(JSON.stringify({ received: true }), { headers: { "Content-Type": "application/json" } });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return new Response("Handler error", { status: 500 });
   }

@@ -1,15 +1,21 @@
 import Stripe from "npm:stripe@17";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// ---- shared helpers (inlined for single-file dashboard deploys) ----
+// ---- shared helpers (inlined for single-file dashboard deploys; regenerate with the script in README) ----
 // Shared helpers for the billing Edge Functions (Deno).
 
 const APP_URL = Deno.env.get("APP_URL") ?? "https://theplaybookcaller.com/";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
-  apiVersion: "2024-12-18.acacia",
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// Built on first use, not at module load: an unset STRIPE_SECRET_KEY must produce a clear
+// "not configured" reply rather than crash the worker.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = Deno.env.get("STRIPE_SECRET_KEY");
+  if (!key) throw json({ error: "Billing is not configured yet (STRIPE_SECRET_KEY missing)." }, 503);
+  _stripe = new Stripe(key, { apiVersion: "2024-12-18.acacia", httpClient: Stripe.createFetchHttpClient() });
+  return _stripe;
+}
 
 // Service-role client: bypasses RLS, used only inside these functions.
 const admin = createClient(
@@ -42,7 +48,7 @@ async function requireUser(req: Request) {
 async function customerFor(userId: string, email?: string, name?: string): Promise<string> {
   const { data: profile } = await admin.from("profiles").select("stripe_customer_id, email, name").eq("user_id", userId).maybeSingle();
   if (profile?.stripe_customer_id) return profile.stripe_customer_id;
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email: email ?? profile?.email ?? undefined,
     name: name ?? profile?.name ?? undefined,
     metadata: { supabase_user_id: userId },
@@ -66,7 +72,7 @@ async function userIdForCustomer(customerId: string, sub?: Stripe.Subscription):
   if (fromMeta) return fromMeta;
   const { data } = await admin.from("profiles").select("user_id").eq("stripe_customer_id", customerId).maybeSingle();
   if (data?.user_id) return data.user_id;
-  const customer = await stripe.customers.retrieve(customerId);
+  const customer = await getStripe().customers.retrieve(customerId);
   return (customer as Stripe.Customer).metadata?.supabase_user_id ?? null;
 }
 
@@ -97,8 +103,10 @@ Deno.serve(async (req) => {
   const body = await req.text();
   let event: Stripe.Event;
   try {
-    event = await stripe.webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET, undefined, cryptoProvider);
+    if (!WEBHOOK_SECRET) return new Response("Webhook not configured (STRIPE_WEBHOOK_SECRET missing)", { status: 503 });
+    event = await getStripe().webhooks.constructEventAsync(body, sig, WEBHOOK_SECRET, undefined, cryptoProvider);
   } catch (e) {
+    if (e instanceof Response) return e;   // getStripe(): billing not configured
     console.error("Bad signature", (e as Error).message);
     return new Response("Bad signature", { status: 400 });
   }
@@ -107,7 +115,7 @@ Deno.serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
-        if (subId) await upsertSubscription(await stripe.subscriptions.retrieve(subId));
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
         break;
       }
       case "customer.subscription.created":
@@ -121,7 +129,7 @@ Deno.serve(async (req) => {
       case "invoice.paid": {
         const inv = event.data.object as Stripe.Invoice;
         const subId = typeof inv.subscription === "string" ? inv.subscription : inv.subscription?.id;
-        if (subId) await upsertSubscription(await stripe.subscriptions.retrieve(subId));
+        if (subId) await upsertSubscription(await getStripe().subscriptions.retrieve(subId));
         break;
       }
       default:
@@ -129,6 +137,7 @@ Deno.serve(async (req) => {
     }
     return new Response(JSON.stringify({ received: true }), { headers: { "Content-Type": "application/json" } });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return new Response("Handler error", { status: 500 });
   }

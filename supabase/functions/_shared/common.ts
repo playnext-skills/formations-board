@@ -4,10 +4,16 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 export const APP_URL = Deno.env.get("APP_URL") ?? "https://theplaybookcaller.com/";
 
-export const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
-  apiVersion: "2024-12-18.acacia",
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// Built on first use, not at module load: an unset STRIPE_SECRET_KEY must produce a clear
+// "not configured" reply rather than crash the worker.
+let _stripe: Stripe | null = null;
+export function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = Deno.env.get("STRIPE_SECRET_KEY");
+  if (!key) throw json({ error: "Billing is not configured yet (STRIPE_SECRET_KEY missing)." }, 503);
+  _stripe = new Stripe(key, { apiVersion: "2024-12-18.acacia", httpClient: Stripe.createFetchHttpClient() });
+  return _stripe;
+}
 
 // Service-role client: bypasses RLS, used only inside these functions.
 export const admin = createClient(
@@ -40,7 +46,7 @@ export async function requireUser(req: Request) {
 export async function customerFor(userId: string, email?: string, name?: string): Promise<string> {
   const { data: profile } = await admin.from("profiles").select("stripe_customer_id, email, name").eq("user_id", userId).maybeSingle();
   if (profile?.stripe_customer_id) return profile.stripe_customer_id;
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email: email ?? profile?.email ?? undefined,
     name: name ?? profile?.name ?? undefined,
     metadata: { supabase_user_id: userId },

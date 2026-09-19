@@ -1,6 +1,6 @@
 // POST { plan: "personal"|"team"|"program"|"unlimited", interval: "month"|"year" }
 // -> { url } of a Stripe Checkout Session for the signed-in user.
-import { admin, APP_URL, cors, customerFor, json, requireUser, stripe } from "../_shared/common.ts";
+import { admin, APP_URL, cors, customerFor, getStripe, json, requireUser } from "../_shared/common.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
 
     const meta = (user.user_metadata ?? {}) as Record<string, string>;
     const customer = await customerFor(user.id, user.email, meta.name);
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       mode: "subscription",
       customer,
       line_items: [{ price: price.price_id, quantity: 1 }],
